@@ -2489,6 +2489,7 @@ async function generateAiSceneImage(
   const storedUsed = getStoredUsedImages();
 
   // Helper to test and record buffer uniqueness
+  // sourceUrl 은 스톡(Pexels/Pixabay) 재사용 방지용이다. AI 생성 주소는 매번 달라 목록만 밀어내므로 넘기지 않는다.
   const verifyAndRecordBuffer = (buf: Buffer, sourceUrl?: string, photoId?: string): Buffer | null => {
     if (!buf || buf.length < 5000) return null;
     const hash = crypto.createHash('sha256').update(buf).digest('hex');
@@ -2647,7 +2648,7 @@ async function generateAiSceneImage(
         if (imgUrl) {
           const buf = await fetchImageBufferWithRetry(imgUrl);
           if (buf) {
-            const verified = verifyAndRecordBuffer(buf, imgUrl);
+            const verified = verifyAndRecordBuffer(buf);
             if (verified) {
               console.log(`[Fal.ai FLUX] Scene ${sceneIdx + 1} generated successfully!`);
               return verified;
@@ -2700,7 +2701,7 @@ async function generateAiSceneImage(
       const page = 1 + (sceneIdx % 3);
       const searchRes = await fetch(
         `https://api.pexels.com/v1/search?query=${encodeURIComponent(searchQuery)}&orientation=portrait&per_page=30&page=${page}`,
-        { headers: { Authorization: settings.pexelsApiKey } }
+        { headers: { Authorization: settings.pexelsApiKey.trim() } }
       );
       if (searchRes.ok) {
         const data: any = await searchRes.json();
@@ -2736,7 +2737,7 @@ async function generateAiSceneImage(
       console.log(`[Pixabay Stock] Searching for scene ${sceneIdx + 1} ("${searchQuery}")...`);
       const page = 1 + (sceneIdx % 3);
       const searchRes = await fetch(
-        `https://pixabay.com/api/?key=${settings.pixabayApiKey}&q=${encodeURIComponent(searchQuery)}&image_type=photo&orientation=vertical&per_page=30&page=${page}`
+        `https://pixabay.com/api/?key=${encodeURIComponent(settings.pixabayApiKey.trim())}&q=${encodeURIComponent(searchQuery)}&image_type=photo&orientation=vertical&per_page=30&page=${page}`
       );
       if (searchRes.ok) {
         const data: any = await searchRes.json();
@@ -2776,7 +2777,7 @@ async function generateAiSceneImage(
       console.log(`[FLUX Engine] Fetching fresh unique AI image for scene ${sceneIdx + 1} (${isThumbnail ? 'Thumbnail' : 'Scene'}, seed: ${seed}, attempt ${attempt + 1})...`);
       const buf = await fetchImageBufferWithRetry(pollinationsUrl);
       if (buf) {
-        const verified = verifyAndRecordBuffer(buf, pollinationsUrl);
+        const verified = verifyAndRecordBuffer(buf);
         if (verified) return await stripPollinationsLogo(verified);
       }
     }
@@ -2792,7 +2793,7 @@ async function generateAiSceneImage(
       const turboUrl = `https://image.pollinations.ai/prompt/${turboPrompt}?width=${POLLINATIONS_REQ_WIDTH}&height=${POLLINATIONS_REQ_HEIGHT}&nologo=true&safe=true&seed=${turboSeed}&model=turbo`;
       const turboBuf = await fetchImageBufferWithRetry(turboUrl);
       if (turboBuf) {
-        const verified = verifyAndRecordBuffer(turboBuf, turboUrl);
+        const verified = verifyAndRecordBuffer(turboBuf);
         if (verified) return await stripPollinationsLogo(verified);
       }
     } catch {}
@@ -3231,12 +3232,14 @@ function buildAssSubtitles(
     '\n[Events]\n' +
     'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n';
 
+  // 초 단위로 올림해야 제목이 마지막 순간까지 남는다(내림하면 최대 1초 일찍 사라짐)
+  const endSec = Math.ceil(durationSec);
   const totalAssDuration =
-    Math.floor(durationSec / 3600) +
+    Math.floor(endSec / 3600) +
     ':' +
-    String(Math.floor((durationSec % 3600) / 60)).padStart(2, '0') +
+    String(Math.floor((endSec % 3600) / 60)).padStart(2, '0') +
     ':' +
-    String(Math.floor(durationSec % 60)).padStart(2, '0') +
+    String(endSec % 60).padStart(2, '0') +
     '.00';
 
   let events = '';
@@ -3393,6 +3396,8 @@ function createWindow() {
       contextIsolation: true,
       sandbox: true,
       webSecurity: !usesDevServer,
+      // 설치판에서는 개발자 도구를 막는다(콘솔에서 electronAPI 를 직접 불러 인증·토큰을 건드릴 수 있다)
+      devTools: !app.isPackaged,
     },
   });
 
@@ -3404,8 +3409,8 @@ function createWindow() {
     console.error(`[Renderer Load Fail] ${errCode}: ${errDesc} at ${url}`);
   });
 
-  // Enable F12 to toggle DevTools
-  mainWindow.webContents.on('before-input-event', (event, input) => {
+  // Enable F12 to toggle DevTools (개발 실행에서만)
+  if (!app.isPackaged) mainWindow.webContents.on('before-input-event', (event, input) => {
     if (input.key === 'F12' && input.type === 'keyDown') {
       mainWindow?.webContents.toggleDevTools();
       event.preventDefault();
@@ -3773,8 +3778,12 @@ async function buildSfxTrack(
     // Sort chronologically by timeMs
     cues.sort((a, b) => a.timeMs - b.timeMs);
 
-    // Limit to at most 12 cues to maintain clean acoustic balance
-    const limitedCues = cues.slice(0, 12);
+    // Limit to at most 12 cues to maintain clean acoustic balance.
+    // 앞에서 12개만 자르면 긴 영상 후반부는 효과음이 하나도 없다. 전체 길이에 고르게 솎아낸다.
+    const MAX_SFX_CUES = 12;
+    const limitedCues = cues.length <= MAX_SFX_CUES
+      ? cues
+      : Array.from({ length: MAX_SFX_CUES }, (_, k) => cues[Math.round((k * (cues.length - 1)) / (MAX_SFX_CUES - 1))]);
 
     const delayFilters = limitedCues
       .map((c, i) => `[${i}:a]adelay=${c.timeMs}|${c.timeMs},volume=${c.volume.toFixed(2)}[s${i}]`)
@@ -4037,7 +4046,7 @@ async function executeRenderPipeline(
         } else if (vUrl.startsWith('http://') || vUrl.startsWith('https://')) {
           sendProgress(
             'rendering_video',
-            Math.round(70 + (s / sceneCount) * 12),
+            Math.round(75 + (s / sceneCount) * 10),
             `씬 ${s + 1}/${sceneCount} 무료 비디오 클립 다운로드 중...`
           );
           const tempVideoPath = path.join(scenesTempDir, `scene_${s}_clip.mp4`);
@@ -4060,7 +4069,7 @@ async function executeRenderPipeline(
       if (shouldSearchStockVideo) {
         sendProgress(
           'rendering_video',
-          Math.round(70 + (s / sceneCount) * 12),
+          Math.round(75 + (s / sceneCount) * 10),
           `씬 ${s + 1}/${sceneCount} Pexels/스톡 비디오 자동 매칭 중...`
         );
         const searchKeyword = translateKoreanVisualKeywords(cs?.text || sceneContext || prompt);
@@ -4091,7 +4100,7 @@ async function executeRenderPipeline(
       } else {
         sendProgress(
           'rendering_video',
-          Math.round(70 + (s / sceneCount) * 12),
+          Math.round(75 + (s / sceneCount) * 10),
           isThumbnail
             ? `[썸네일] 제목 맞춤형 고화질 비주얼 생성 중...`
             : `AI 비주얼 씬 ${s + 1}/${sceneCount} 생성 중...`
@@ -4560,16 +4569,6 @@ async function generateSmartCommentText(title: string, description: string, apiK
 // ----------------------------------------------------
 // Smart YouTube Chapters & Affiliate Link Generator
 // ----------------------------------------------------
-function generateSmartYouTubeChapters(title: string, description: string): string {
-  return [
-    '📌 [타임라인 챕터]',
-    '0:00 ⚡ 놓치면 손해 3초 핵심 요약',
-    '0:12 💡 실전 꿀팁 & 비법 공개',
-    '0:35 🔍 주의사항 및 놓치기 쉬운 포인트',
-    '0:48 ✨ 3줄 완벽 정리 & 마무리',
-  ].join('\n');
-}
-
 function formatAffiliateLinksBlock(title: string, description: string, settings: AppSettings): string {
   const links = settings.affiliateLinks || [];
   if (links.length === 0 && !settings.naverBlogLink) return '';
@@ -4645,13 +4644,9 @@ async function executeUploadToYoutubeCore(params: {
     const aiMeta = await generateYouTubeHookingMetadata(originalTitle, originalDesc, geminiApiKey);
     const finalTitle = aiMeta.title.slice(0, 95);
 
-    // Build Rich Description with SEO Chapters & Affiliate Links
+    // Build Rich Description with Affiliate Links
+    // (고정 시각 가짜 챕터는 영상 내용과 무관하고 쇼츠엔 표시도 안 돼 제거)
     const descParts: string[] = [aiMeta.description];
-
-    // Auto Chapters
-    if (settings.enableAutoChapters ?? true) {
-      descParts.push('', generateSmartYouTubeChapters(finalTitle, originalDesc));
-    }
 
     // Affiliate Links & Monetization
     if (settings.enableAffiliateLinks ?? true) {
@@ -4764,7 +4759,8 @@ async function executeUploadToYoutubeCore(params: {
       },
       3,
       3000,
-      120000
+      // 고정 120초면 느린 회선에서 큰 영상이 매번 끊긴다. 최소 2분 + 100KB당 1초(≈0.8Mbps 기준)
+      Math.max(120000, Math.ceil(videoFileSize / 100))
     );
 
     if (!uploadRes.ok) {
@@ -5141,7 +5137,7 @@ ipcMain.handle('check-update', async () => {
     if (isGitRepo && hasRemote) {
       try {
         await execAsync('git fetch', { cwd: rootDir, timeout: 10000 });
-        const { stdout: diffOut } = await execAsync('git rev-list HEAD...@{u} --count', { cwd: rootDir });
+        const { stdout: diffOut } = await execAsync('git rev-list HEAD..@{u} --count', { cwd: rootDir });
         diffCount = parseInt(diffOut.trim(), 10) || 0;
 
         if (diffCount > 0) {
@@ -5256,11 +5252,12 @@ ipcMain.handle('check-update', async () => {
       }
     } catch {}
 
-    const hasCommitDiff = Boolean(latestCommit && appBootCommit && latestCommit !== appBootCommit);
+    // 개발 서버 실행 중엔 내가 커밋할 때마다 HEAD 가 바뀌어 업데이트 버튼이 깜빡인다
+    const hasCommitDiff = !isDevServerRequested && Boolean(latestCommit && appBootCommit && latestCommit !== appBootCommit);
     const hasActualUpdate = hasHigherVersion || remoteUpdateAvailable || isNewBuildOnDisk || hasCommitDiff;
     const effectiveLatest = isNewerVersion(latestVersion, APP_BOOT_VERSION)
       ? latestVersion
-      : (hasHigherVersion ? latestVersion : '1.4.1');
+      : (hasHigherVersion ? latestVersion : APP_BOOT_VERSION);
 
     if (hasActualUpdate) {
       // 설치 파일 주소·체크섬은 메인 프로세스가 직접 확인한 값만 기억해 두고, 설치할 때 화면에서 넘어온 값 대신 이것을 쓴다.
@@ -5379,27 +5376,20 @@ ipcMain.handle('perform-update', async (event, params?: { downloadUrl?: string; 
       hasRemote = remotes.trim().length > 0;
     } catch {}
 
-    if (hasRemote) {
-      sendUpdateStatus('원격 저장소에서 최신 소스 코드 동기화 중 (git pull)...');
+    // 한 단계라도 실패하면 '업데이트 완료'로 재시작하지 않고 실패를 알린다(예전엔 경고만 찍고 성공으로 보고했다)
+    const steps: Array<[string, string, number | undefined]> = [
+      ...(hasRemote ? [['원격 저장소에서 최신 소스 코드 동기화 중 (git pull)...', 'git pull --ff-only', 30000] as [string, string, number]] : []),
+      ['앱 UI 및 프론트엔드 최신 컴파일 중 (vite build)...', 'npm run build:vite', undefined],
+      ['백엔드 엔진 빌드 컴파일 중 (build:electron)...', 'npm run build:electron', undefined],
+    ];
+    for (const [status, cmd, timeout] of steps) {
+      sendUpdateStatus(status);
       try {
-        await execAsync('git pull', { cwd: rootDir, timeout: 30000 });
-      } catch (pullErr: any) {
-        console.warn('[Git pull warning]:', pullErr?.message || pullErr);
+        await execAsync(cmd, { cwd: rootDir, timeout });
+      } catch (stepErr: any) {
+        console.error(`[Update] ${cmd} failed:`, stepErr?.message || stepErr);
+        return { success: false, error: `업데이트 중 '${cmd}' 단계가 실패했습니다: ${String(stepErr?.stderr || stepErr?.message || stepErr).slice(0, 300)}` };
       }
-    }
-
-    sendUpdateStatus('앱 UI 및 프론트엔드 최신 컴파일 중 (vite build)...');
-    try {
-      await execAsync('npm run build:vite', { cwd: rootDir });
-    } catch (viteErr: any) {
-      console.warn('[Vite build warning]:', viteErr?.message || viteErr);
-    }
-
-    sendUpdateStatus('백엔드 엔진 빌드 컴파일 중 (build:electron)...');
-    try {
-      await execAsync('npm run build:electron', { cwd: rootDir });
-    } catch (elecErr: any) {
-      console.warn('[Electron build warning]:', elecErr?.message || elecErr);
     }
 
     // Read package.json to sync currentRunningVersion
@@ -5517,18 +5507,18 @@ async function sendTelegramNotification(options: {
     }
 
     const apiUrl = `https://api.telegram.org/bot${token}/sendMessage`;
-    const res = await fetch(apiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        parse_mode: 'Markdown',
-        disable_web_page_preview: false,
-      }),
-    });
+    const sendText = async (parseMode?: string) => {
+      const res = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text, parse_mode: parseMode, disable_web_page_preview: false }),
+      });
+      return (await res.json()) as any;
+    };
 
-    const data = (await res.json()) as any;
+    // 제목에 _ * ` [ 가 들어가면 Markdown 해석이 실패(400)하므로 서식 없이 한 번 더 보낸다
+    let data = await sendText('Markdown');
+    if (!data.ok && /parse entities/i.test(String(data.description))) data = await sendText();
     if (data.ok) {
       return { success: true };
     } else {
@@ -6270,11 +6260,17 @@ ipcMain.handle('translate-script-multilingual', async (_, { script, title }: { s
   };
 });
 
+// 화면에서 온 projectId 를 폴더 이름에 넣기 전에 걸러 '../' 같은 경로 탈출을 막는다
+function folderSafeId(projectId: unknown): string {
+  const id = String(projectId ?? '');
+  return /^[A-Za-z0-9_-]{1,64}$/.test(id) ? id : String(Date.now());
+}
+
 ipcMain.handle('export-multilingual-bundle', async (_, { projectId, videoPath, originalTitle, translations }) => {
   try {
     const settings = getStoredSettings();
     const outputBase = settings.outputDirectory || OUTPUT_DIR;
-    const globalFolder = path.join(outputBase, `global_multilingual_${projectId || Date.now()}`);
+    const globalFolder = path.join(outputBase, `global_multilingual_${folderSafeId(projectId)}`);
     fs.mkdirSync(globalFolder, { recursive: true });
 
     // Copy source video
@@ -6324,7 +6320,7 @@ ipcMain.handle('export-multi-platform-bundle', async (_, { projectId, videoPath,
   try {
     const settings = getStoredSettings();
     const outputBase = settings.outputDirectory || OUTPUT_DIR;
-    const exportFolder = path.join(outputBase, `multi_platform_${projectId || Date.now()}`);
+    const exportFolder = path.join(outputBase, `multi_platform_${folderSafeId(projectId)}`);
     fs.mkdirSync(exportFolder, { recursive: true });
 
     // Copy video file & thumbnail
@@ -6336,7 +6332,7 @@ ipcMain.handle('export-multi-platform-bundle', async (_, { projectId, videoPath,
     const targetThumb = path.join(exportFolder, 'thumbnail.jpg');
     const sourceThumbCandidates = [
       videoPath.replace(/\.mp4$/i, '_thumbnail.jpg'),
-      path.join(path.dirname(videoPath), `${projectId}_thumbnail.jpg`),
+      path.join(path.dirname(videoPath), `${folderSafeId(projectId)}_thumbnail.jpg`),
     ];
     for (const st of sourceThumbCandidates) {
       if (fs.existsSync(st)) {
@@ -7844,7 +7840,15 @@ ipcMain.handle('generate-pinned-comments', async (_, params: { topic: string; sc
   }
 ]`;
 
-      const aiRes = await callGeminiApiForScript(geminiKey, prompt);
+      // 대본 엔진(callGeminiApiForScript)은 쇼츠 대본 지침을 덧씌워 JSON 대신 대본을 돌려주므로 직접 호출한다
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_WATERFALL_MODELS[0]}:generateContent?key=${geminiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.8, maxOutputTokens: 1500 } }),
+      });
+      if (!res.ok) throw new Error(`Gemini ${res.status}`);
+      const data: any = await res.json();
+      const aiRes: string = data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('') || '';
       if (aiRes) {
         const cleaned = aiRes.replace(/```json/g, '').replace(/```/g, '').trim();
         const parsed = JSON.parse(cleaned);
@@ -7863,7 +7867,7 @@ ipcMain.handle('generate-pinned-comments', async (_, params: { topic: string; sc
       type: 'balance_game',
       question: `"${topic}" 여러분의 선택은?`,
       options: ['지금 당장 시작한다', '차근차근 준비 후 시작한다'],
-      fullCommentText: `🔥 [댓글 투표] "${topic}" 관련해서 여러분은 어떤 쪽이신가요?\\n1. 지금 당장 시작한다 👍\\n2. 신중하게 준비 후 시작한다 💬\\n댓글로 솔직한 생각을 남겨주세요!`,
+      fullCommentText: `🔥 [댓글 투표] "${topic}" 관련해서 여러분은 어떤 쪽이신가요?\n1. 지금 당장 시작한다 👍\n2. 신중하게 준비 후 시작한다 💬\n댓글로 솔직한 생각을 남겨주세요!`,
     },
     {
       type: 'opinion_vote',
@@ -7873,7 +7877,7 @@ ipcMain.handle('generate-pinned-comments', async (_, params: { topic: string; sc
     {
       type: 'summary_quiz',
       question: '3초 퀴즈 & 복습',
-      fullCommentText: `📌 [오늘의 1분 핵심 정리]\\n놓치면 손해 보는 이 내용, 주변 친구에게도 공유해보세요! 여러분의 생각은 어떠신가요? ❤️`,
+      fullCommentText: `📌 [오늘의 1분 핵심 정리]\n놓치면 손해 보는 이 내용, 주변 친구에게도 공유해보세요! 여러분의 생각은 어떠신가요? ❤️`,
     },
   ];
 
