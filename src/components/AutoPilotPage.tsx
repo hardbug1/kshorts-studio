@@ -223,6 +223,17 @@ export const AutoPilotPage: React.FC<AutoPilotPageProps> = ({ settings, onNaviga
     }
   };
 
+  // 메인 프로세스가 정하는 값(실행 시각·기록·켜짐 여부)만 반영한다.
+  // 설정 전체를 덮으면 사용자가 저장 전에 입력 중이던 채널 주제·댓글 문구가 사라졌다.
+  const applyServerRunState = (loaded: AutoPilotSchedule) =>
+    setConfig((prev) => ({
+      ...prev,
+      enabled: loaded.enabled,
+      nextRunAt: loaded.nextRunAt,
+      lastRunAt: loaded.lastRunAt,
+      history: loaded.history,
+    }));
+
   // Initial Load & Listen for Live Status (without aggressive 5s polling that wiped inputs)
   useEffect(() => {
     fetchConfig();
@@ -232,7 +243,9 @@ export const AutoPilotPage: React.FC<AutoPilotPageProps> = ({ settings, onNaviga
         setLiveStatus(status);
         setIsExecutingNow(status.isRunning);
         if (status.currentStep === 'done' || (!status.isRunning && status.historyItem)) {
-          fetchConfig();
+          window.electronAPI?.getAutoPilotConfig?.()
+            .then((loaded) => loaded && applyServerRunState(loaded))
+            .catch((err) => console.warn('[AutoPilot Run State Refresh Error]:', err));
         }
       });
       return () => {
@@ -245,7 +258,7 @@ export const AutoPilotPage: React.FC<AutoPilotPageProps> = ({ settings, onNaviga
     const toSave = newConfig || config;
     if (window.electronAPI?.saveAutoPilotConfig) {
       const updated = await window.electronAPI.saveAutoPilotConfig(toSave);
-      setConfig(updated);
+      applyServerRunState(updated); // 저장 응답이 오는 사이 입력한 글자를 덮어쓰지 않는다
     }
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
