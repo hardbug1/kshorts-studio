@@ -59,6 +59,13 @@ function setupBundledFfmpegPath(): string[] {
 }
 setupBundledFfmpegPath();
 
+// 응답하지 않는 서버 하나가 렌더 전체(와 선차감된 토큰)를 무한정 붙잡지 않게,
+// signal을 직접 주지 않은 fetch에는 기본 제한 시간을 건다. 따로 제한 시간을 준 호출은 그대로 둔다.
+const DEFAULT_FETCH_TIMEOUT_MS = 180_000;
+const nativeFetch = globalThis.fetch;
+globalThis.fetch = ((input: Parameters<typeof fetch>[0], init?: RequestInit) =>
+  nativeFetch(input, init?.signal ? init : { ...init, signal: AbortSignal.timeout(DEFAULT_FETCH_TIMEOUT_MS) })) as typeof fetch;
+
 let mainWindow: BrowserWindow | null = null;
 const isDev = process.env.NODE_ENV !== 'production' && !app.isPackaged;
 const isDevServerRequested = process.env.VITE_DEV === 'true' || process.env.DEV_MODE === 'true';
@@ -1791,10 +1798,8 @@ async function fetchWithNetworkRetry(
 async function fetchImageBufferWithRetry(url: string, headers: Record<string, string> = {}): Promise<Buffer | null> {
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 20000);
-      const res = await fetch(url, { headers, signal: controller.signal });
-      clearTimeout(timeout);
+      // 본문을 받는 동안에도 제한 시간이 걸려 있어야 한다 (예전엔 헤더만 받고 타이머를 풀어 본문에서 멈출 수 있었다).
+      const res = await fetch(url, { headers, signal: AbortSignal.timeout(60000) });
       if (res.ok) {
         const arrayBuf = await res.arrayBuffer();
         if (arrayBuf.byteLength > 5000) {
