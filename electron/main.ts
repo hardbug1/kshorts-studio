@@ -791,6 +791,19 @@ function finalizeLoopScript(script: string, loopMode?: boolean): string {
   return applyLoopBridge(script);
 }
 
+function buildScriptUserPrompt(prompt: string, effectiveTitle: string, durationSeconds: number): string {
+  return (
+    `[유튜브 영상 확정 제목]: ${effectiveTitle}\n` +
+    `[쇼츠 기획 주제]: ${prompt}\n` +
+    `[목표 분량]: 약 ${durationSeconds}초 분량 (한글 약 450~550자의 완결형 쇼츠 대본)\n\n` +
+    `[🚨 대본 집필 가이드]:\n` +
+    `1. 도입부 (0~5초): 제목 "${effectiveTitle}"에 담긴 핵심 질문이나 호기심을 시청자에게 직접 던져 3초 만에 스크롤을 멈추게 만드세요.\n` +
+    `2. 본론 (몰입 전개): 단조롭게 "첫째, 둘째, 셋째"만 반복하지 말고, 주제에 가장 어울리는 흥미진진한 서사(반전, 팩트 폭격, 기상천외한 원인, 생생한 노하우 등)로 눈을 뗄 수 없게 서술하세요.\n` +
+    `3. 결론 (마무리): 핵심 요점을 강렬하게 각인시키고, 시청자가 댓글을 달고 싶어지는 질문으로 온전한 문장으로 매끄럽게 마무리하세요.\n` +
+    `* [화면 전환], (효과음) 등 괄호 지시문이나 해시태그는 절대 넣지 말고, AI 성우가 읽을 순수 한국어 대사만 출력하세요.`
+  );
+}
+
 async function callGeminiApiForScript(
   apiKey: string,
   prompt: string,
@@ -799,15 +812,7 @@ async function callGeminiApiForScript(
   loopMode: boolean = false
 ): Promise<string> {
   const effectiveTitle = (title || prompt).trim();
-  const userPrompt =
-    `[유튜브 영상 확정 제목]: ${effectiveTitle}\n` +
-    `[쇼츠 기획 주제]: ${prompt}\n` +
-    `[목표 분량]: 약 ${durationSeconds}초 분량 (한글 약 450~550자의 완결형 쇼츠 대본)\n\n` +
-    `[🚨 대본 집필 가이드]:\n` +
-    `1. 도입부 (0~5초): 제목 "${effectiveTitle}"에 담긴 핵심 질문이나 호기심을 시청자에게 직접 던져 3초 만에 스크롤을 멈추게 만드세요.\n` +
-    `2. 본론 (몰입 전개): 단조롭게 "첫째, 둘째, 셋째"만 반복하지 말고, 주제에 가장 어울리는 흥미진진한 서사(반전, 팩트 폭격, 기상천외한 원인, 생생한 노하우 등)로 눈을 뗄 수 없게 서술하세요.\n` +
-    `3. 결론 (마무리): 핵심 요점을 강렬하게 각인시키고, 시청자가 댓글을 달고 싶어지는 질문으로 온전한 문장으로 매끄럽게 마무리하세요.\n` +
-    `* [화면 전환], (효과음) 등 괄호 지시문이나 해시태그는 절대 넣지 말고, AI 성우가 읽을 순수 한국어 대사만 출력하세요.`;
+  const userPrompt = buildScriptUserPrompt(prompt, effectiveTitle, durationSeconds);
 
   let lastErr: any = null;
   for (const model of GEMINI_WATERFALL_MODELS) {
@@ -906,6 +911,69 @@ async function callOpenAiApiForScript(
     return cleanScript(rawText);
   }
   throw new Error('OpenAI returned empty script');
+}
+
+// ---- 구독 CLI 엔진 (Claude Code / Codex): 이 PC에 로그인된 구독으로 실행. 본인 PC 개인 사용 전용 ----
+type SubscriptionLlm = 'claude' | 'codex';
+const SUBSCRIPTION_LLM_TIMEOUT_MS = 180_000;
+
+function getSubscriptionLlm(settings: AppSettings): SubscriptionLlm | null {
+  const v = settings.subscriptionLlm;
+  return v === 'claude' || v === 'codex' ? v : null;
+}
+
+/** 셸 없이 구독 CLI를 실행하고 마지막 답변 텍스트만 돌려준다. */
+async function runSubscriptionLlm(engine: SubscriptionLlm, systemPrompt: string, userPrompt: string): Promise<string> {
+  // GUI로 실행한 앱은 로그인 셸의 PATH를 못 받으므로 흔한 설치 위치를 덧붙인다.
+  const extraPaths = [path.join(os.homedir(), '.local', 'bin'), '/opt/homebrew/bin', '/usr/local/bin'];
+  const env = { ...process.env, PATH: [process.env.PATH, ...extraPaths].filter(Boolean).join(path.delimiter) };
+  const opts = { cwd: os.tmpdir(), env, timeout: SUBSCRIPTION_LLM_TIMEOUT_MS, maxBuffer: 10 * 1024 * 1024 };
+
+  if (engine === 'claude') {
+    // 도구·MCP·사용자 설정을 빼서 호출당 컨텍스트를 줄인다 (구독 로그인은 유지된다; --bare는 로그인을 잃는다).
+    const { stdout } = await execFileAsync('claude', [
+      '-p', userPrompt,
+      '--system-prompt', systemPrompt,
+      '--tools', '',
+      '--strict-mcp-config',
+      '--setting-sources', '',
+      '--no-session-persistence',
+      '--output-format', 'text',
+    ], opts);
+    return String(stdout).trim();
+  }
+
+  const outFile = path.join(os.tmpdir(), `kshorts-codex-${crypto.randomUUID()}.txt`);
+  try {
+    const run = execFileAsync('codex', [
+      'exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only',
+      '-o', outFile,
+      `${systemPrompt}\n\n${userPrompt}`,
+    ], opts);
+    run.child.stdin?.end(); // codex exec는 stdin이 열려 있으면 추가 입력을 기다리며 멈춘다
+    await run;
+    return fs.readFileSync(outFile, 'utf8').trim();
+  } finally {
+    fs.rmSync(outFile, { force: true });
+  }
+}
+
+async function callSubscriptionLlmForScript(
+  engine: SubscriptionLlm,
+  prompt: string,
+  title?: string,
+  durationSeconds: number = 55,
+  loopMode: boolean = false
+): Promise<string> {
+  const effectiveTitle = (title || prompt).trim();
+  console.log(`[Subscription Script Engine] ${engine} for title: "${effectiveTitle}"...`);
+  const rawText = await runSubscriptionLlm(
+    engine,
+    KOREAN_SHORTS_SYSTEM_PROMPT + (loopMode ? LOOP_MODE_SYSTEM_ADDENDUM : ''),
+    buildScriptUserPrompt(prompt, effectiveTitle, durationSeconds)
+  );
+  if (rawText.length > 100) return cleanScript(rawText);
+  throw new Error(`${engine} returned empty script`);
 }
 
 function cleanScript(raw: string): string {
@@ -2184,7 +2252,8 @@ async function generateAiVisualPrompts(
   title: string,
   sceneTexts: string[],
   geminiApiKey?: string,
-  openaiApiKey?: string
+  openaiApiKey?: string,
+  subscriptionLlm?: SubscriptionLlm | null
 ): Promise<string[]> {
   const sceneListStr = sceneTexts
     .map((text, idx) => `${idx === 0 ? '[Thumbnail Scene (Hero Shot)]' : `[Scene ${idx}]`}: ${text}`)
@@ -2201,6 +2270,19 @@ async function generateAiVisualPrompts(
     `[Video Title]: ${title}\n` +
     `[Scenes]:\n${sceneListStr}\n\n` +
     `Output format: JSON array of strings, e.g. ["hero shot of ...", "close-up of ..."]`;
+
+  if (subscriptionLlm) {
+    try {
+      const raw = await runSubscriptionLlm(subscriptionLlm, systemInstruction, userPrompt);
+      const parsed = JSON.parse(raw.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, ''));
+      if (Array.isArray(parsed) && parsed.length === sceneTexts.length) {
+        return parsed.map((p) => String(p).trim());
+      }
+      console.warn(`[${subscriptionLlm} Visual Prompts] scene count mismatch: ${Array.isArray(parsed) ? parsed.length : 'not array'} vs ${sceneTexts.length}`);
+    } catch (e) {
+      console.warn(`[${subscriptionLlm} Visual Prompts Error]:`, e);
+    }
+  }
 
   if (geminiApiKey) {
     for (const model of ['gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-flash-latest']) {
@@ -3283,6 +3365,16 @@ ipcMain.handle('generate-script', async (_, params: GenerateScriptRequest) => {
   const settings = getStoredSettings();
   const geminiKey = params.geminiApiKey || settings.geminiApiKey || process.env.GEMINI_API_KEY;
   const openaiKey = params.apiKey || settings.openaiApiKey || process.env.OPENAI_API_KEY;
+  const subscriptionLlm = getSubscriptionLlm(settings);
+
+  if (subscriptionLlm) {
+    try {
+      const text = await callSubscriptionLlmForScript(subscriptionLlm, prompt, undefined, durationSeconds, loopMode);
+      if (text) return finalizeLoopScript(text, loopMode);
+    } catch (e) {
+      console.warn(`[${subscriptionLlm} Subscription Script Error, trying API keys/fallback]:`, e);
+    }
+  }
 
   if (geminiKey) {
     try {
@@ -3576,7 +3668,15 @@ async function executeRenderPipeline(
       sendProgress('generating_script', 20, 'AI 대본 자동 생성 중...');
       const geminiKey = settings.geminiApiKey || process.env.GEMINI_API_KEY;
       const openaiKey = settings.openaiApiKey || process.env.OPENAI_API_KEY;
-      if (geminiKey) {
+      const subscriptionLlm = getSubscriptionLlm(settings);
+      if (subscriptionLlm) {
+        try {
+          finalScript = await callSubscriptionLlmForScript(subscriptionLlm, prompt, title, durationSeconds, Boolean(params.loopMode));
+        } catch (e) {
+          console.warn(`[${subscriptionLlm} Subscription Script Error]:`, e);
+        }
+      }
+      if (!finalScript && geminiKey) {
         try {
           finalScript = await callGeminiApiForScript(geminiKey, prompt, title, durationSeconds, Boolean(params.loopMode));
         } catch {}
@@ -3721,9 +3821,10 @@ async function executeRenderPipeline(
     let aiVisualPrompts: string[] = [];
     const geminiKey = settings.geminiApiKey || process.env.GEMINI_API_KEY;
     const openaiKey = settings.openaiApiKey || process.env.OPENAI_API_KEY;
-    if (geminiKey || openaiKey) {
+    const subscriptionLlm = getSubscriptionLlm(settings);
+    if (geminiKey || openaiKey || subscriptionLlm) {
       try {
-        aiVisualPrompts = await generateAiVisualPrompts(title || prompt, sceneDescriptions, geminiKey, openaiKey);
+        aiVisualPrompts = await generateAiVisualPrompts(title || prompt, sceneDescriptions, geminiKey, openaiKey, subscriptionLlm);
       } catch (promptErr) {
         console.warn('[AI Visual Prompts Warning]:', promptErr);
       }
@@ -6708,8 +6809,17 @@ async function executeAutoPilotJob(forceNow = false): Promise<{ success: boolean
     let script = '';
     const geminiKey = settings.geminiApiKey || process.env.GEMINI_API_KEY;
     const openaiKey = settings.openaiApiKey || process.env.OPENAI_API_KEY;
+    const subscriptionLlm = getSubscriptionLlm(settings);
 
-    if (geminiKey) {
+    if (subscriptionLlm) {
+      try {
+        script = await callSubscriptionLlmForScript(subscriptionLlm, topic, title, duration);
+      } catch (subErr) {
+        console.warn(`[AutoPilot ${subscriptionLlm} Subscription Script failed, trying API keys]:`, subErr);
+      }
+    }
+
+    if (!script && geminiKey) {
       try {
         console.log(`[AutoPilot] Requesting Gemini script for title: "${title}" | topic: "${topic}"`);
         script = await callGeminiApiForScript(geminiKey, topic, title, duration);

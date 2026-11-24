@@ -26,6 +26,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({
   const [imageEngine, setImageEngine] = useState<'pollinations' | 'openai' | 'fal' | 'stability' | 'pexels' | 'pixabay' | 'gemini'>(
     settings.imageEngine || 'pollinations'
   );
+  const [subscriptionLlm, setSubscriptionLlm] = useState<'off' | 'claude' | 'codex'>(settings.subscriptionLlm || 'off');
   const [gpuEncoder, setGpuEncoder] = useState<'auto' | 'nvenc' | 'qsv' | 'cpu'>(
     settings.gpuEncoder || 'auto'
   );
@@ -60,6 +61,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({
       pexelsApiKey: pexelsApiKey.trim() || undefined,
       pixabayApiKey: pixabayApiKey.trim() || undefined,
       imageEngine,
+      subscriptionLlm,
       gpuEncoder,
       outputDirectory: outputDir.trim() || undefined,
       githubRepo: githubRepo.trim() || undefined,
@@ -258,6 +260,37 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({
           </div>
           <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
             무료로 사용할 수 있는 Google Gemini API 키 및 Pexels/Pixabay 무료 미디어 키를 아래에 입력하면 쇼츠 퀄리티가 대폭 상승합니다. 키가 없어도 기본 내장 모드로 즉시 생성이 가능합니다.
+          </p>
+        </div>
+
+        {/* Subscription CLI engine (personal use on this PC) */}
+        <div className="space-y-2 p-4 rounded-xl bg-violet-50 border border-violet-200">
+          <div className="flex items-center gap-1.5 text-xs font-extrabold text-slate-800">
+            <Sparkles className="w-3.5 h-3.5 text-violet-600" />
+            <span>구독 AI로 대본·장면 설명 만들기 (API 키 불필요, 최우선 사용)</span>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {([
+              { id: 'off', label: '사용 안 함' },
+              { id: 'claude', label: 'Claude 구독' },
+              { id: 'codex', label: 'ChatGPT 구독 (Codex)' },
+            ] as const).map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setSubscriptionLlm(opt.id)}
+                className={`px-3 py-2 rounded-lg text-xs font-bold border transition-all ${
+                  subscriptionLlm === opt.id
+                    ? 'bg-violet-600 text-white border-violet-600'
+                    : 'bg-white text-slate-700 border-slate-200 hover:border-violet-400'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+            이 PC에 로그인된 Claude Code(<code>claude</code>) 또는 Codex(<code>codex</code>) 명령을 사용합니다. 본인 PC에서 본인이 쓸 때만 사용하세요. 실패하면 아래 API 키 → 내장 대본 순으로 자동 전환됩니다.
           </p>
         </div>
 
