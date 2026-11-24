@@ -6878,6 +6878,7 @@ async function executeAutoPilotJob(forceNow = false): Promise<{ success: boolean
   isAutoPilotRunning = true;
   isAutoPilotCancelled = false;
   const historyId = `ap_${Date.now()}`;
+  let autoPilotProjectId: string | null = null;
   const timestamp = new Date().toISOString();
   const startTime = Date.now();
 
@@ -7002,8 +7003,9 @@ async function executeAutoPilotJob(forceNow = false): Promise<{ success: boolean
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    projects.unshift(newProject);
-    saveStoredProjects(projects);
+    // 주제·대본 생성에 몇 분이 걸리는 동안 사용자가 지우거나 저장한 프로젝트를 덮어쓰지 않게 저장 직전에 다시 읽는다.
+    saveStoredProjects([newProject, ...getStoredProjects()]);
+    autoPilotProjectId = newProject.id;
 
     broadcastAutoPilotStatus({
       isRunning: true,
@@ -7148,6 +7150,16 @@ async function executeAutoPilotJob(forceNow = false): Promise<{ success: boolean
   } catch (err: any) {
     console.error('[AutoPilot Execution Error]:', err);
     const errorMsg = err?.message || String(err);
+
+    // 렌더가 실패한 프로젝트가 '렌더링 중'으로 영원히 남지 않게 오류로 표시한다.
+    const failedProjectId = autoPilotProjectId;
+    if (failedProjectId) {
+      saveStoredProjects(getStoredProjects().map((p) =>
+        p.id === failedProjectId && p.status !== 'done'
+          ? { ...p, status: 'error', statusMessage: errorMsg, updatedAt: new Date().toISOString() }
+          : p
+      ));
+    }
 
     const historyItem: AutoPilotHistoryItem = {
       id: historyId,
