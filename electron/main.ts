@@ -2089,11 +2089,11 @@ function translateKoreanVisualKeywords(koreanText: string): string {
     [/(?:피자|버거|햄버거|파스타|양식)/, 'delicious gourmet artisan burger and pizza melting cheese food photography'],
     [/(?:디저트|케이크|베이커리|빵|도넛|와플)/, 'exquisite artisan pastry bakery cake dessert table luxury cafe'],
     [/(?:음식|요리|레시피|맛집|먹방|식사|식당|주방|셰프|플레이팅)/, 'gourmet chef dish artfully plated fresh ingredients restaurant dining'],
-    [/(?:강아지|개|댕댕이|골든리트리버|포메라니안|반려견|멍멍이)/, 'adorable playful happy golden retriever puppy dog in grass soft sunlight'],
+    [/(?:강아지|댕댕이|골든리트리버|포메라니안|반려견|멍멍이)/, 'adorable playful happy golden retriever puppy dog in grass soft sunlight'],
     [/(?:고양이|냥이|반려묘|아기고양이|길고양이)/, 'cute fluffy sweet kitten cat with expressive emerald eyes indoors sunlight'],
     [/(?:동물|야생동물|사자|호랑이|코끼리|팬더)/, 'majestic wild animal in natural lush habitat wildlife photography'],
     [/(?:의사|병원|응급실|청진기|간호사|의료진|수술실)/, 'compassionate professional doctor in modern bright hospital stethoscope healthcare'],
-    [/(?:약|약국|비타민|영양제|처방)/, 'modern pharmaceutical capsules medicine wellness healthcare clinic'],
+    [/(?:약국|비타민|영양제|처방)/, 'modern pharmaceutical capsules medicine wellness healthcare clinic'],
     [/(?:주식|증권|코스피|나스닥|주가|주식시장)/, 'vibrant upward trending digital stock market graph financial trading display'],
     [/(?:비트코인|코인|가상화폐|암호화폐|이더리움)/, 'golden glowing bitcoin crypto token dynamic digital blockchain finance'],
     [/(?:통장|잔고|돈|부자|수익|자산|투자|재테크|월급|매출|금괴|달러)/, 'stacks of shiny golden bullion bars crisp dollar cash financial prosperity wealth'],
@@ -2107,16 +2107,16 @@ function translateKoreanVisualKeywords(koreanText: string): string {
     [/(?:조깅|달리기|러닝|마라톤|유산소)/, 'energetic runner athlete sprinting in outdoor morning park path sunrise'],
     [/(?:다이어트|식단|체중|살빼기|칼로리|샐러드)/, 'fresh colorful organic superfood detox salad bowl fresh greens vibrant health'],
     [/(?:축구|손흥민|월드컵|골|경기장|축구공)/, 'intense professional football match on illuminated green stadium turf'],
-    [/(?:독서|책|도서관|서점|교과서|책장)/, 'open vintage book with thoughtful handwritten notes peaceful sunlit library'],
+    [/(?:독서|도서관|서점|교과서|책장)/, 'open vintage book with thoughtful handwritten notes peaceful sunlit library'],
     [/(?:공부|시험|수능|자격증|합격|열공|필기)/, 'cozy aesthetic study desk open notebook glowing desk lamp night concentration'],
     [/(?:커피|카페|아메리카노|라떼|원두|에스프레소|바리스타)/, 'hot steaming cup of espresso coffee latte art on rustic wooden cafe table'],
     [/(?:따뜻한\s*차|녹차|홍차|허브티|찻잔)/, 'traditional aromatic herbal tea cup with delicate steam serene morning light'],
     [/(?:숙면|수면|침대|잠자기|잠들기|꿀잠|베개)/, 'peaceful minimalist luxury bedroom with soft white linen bedding gentle sunrise'],
     [/(?:물\s*한\s*잔|수분\s*보충|생수|시원한\s*물)/, 'crystal clear glass of pure fresh mineral water sunbeam reflections on table'],
     [/(?:바다|해변|해수욕장|모래사장|서핑)/, 'breathtaking tropical turquoise ocean beach waves gentle sunset glow'],
-    [/(?:산|등산|정상|단풍|숲|자연)/, 'majestic scenic mountain peak summit above dramatic misty clouds golden hour'],
+    [/(?:등산|정상|단풍|숲|자연)/, 'majestic scenic mountain peak summit above dramatic misty clouds golden hour'],
     [/(?:비행기|공항|해외여행|여권|캐리어)/, 'commercial passenger airplane cruising gracefully above sunlit fluffy clouds'],
-    [/(?:역사|조선|왕|황제|궁궐|유적|사극|한옥)/, 'magnificent traditional Korean royal palace architecture ornate historic details'],
+    [/(?:역사|조선|황제|궁궐|유적|사극|한옥)/, 'magnificent traditional Korean royal palace architecture ornate historic details'],
     [/(?:경찰|범죄|사건|미스터리|수사|형사|사이렌)/, 'cinematic neo-noir detective mystery crime investigation street dramatic rain shadows'],
     [/(?:공포|귀신|괴담|유령|흉가|심해)/, 'eerie dark cinematic suspense foggy atmospheric mystery abandoned hallway shadows'],
     [/(?:심리|명상|마음|힐링|감사|위로)/, 'serene zen meditation stone garden warm peaceful morning rays tranquil mood'],
@@ -2129,8 +2129,8 @@ function translateKoreanVisualKeywords(koreanText: string): string {
     [/(?:건강|장수|면역|혈관|혈당|당뇨|노화|영양소|슈퍼푸드)/, 'fresh colorful organic superfoods berries citrus green vegetables healthy flatlay'],
     [/(?:패션|옷|코디|스타일|스트릿|쇼핑|룩북)/, 'stylish aesthetic fashion street model chic modern wardrobe cinematic urban lighting'],
     [/(?:음악|노래|악기|기타|피아노|멜로디|비트)/, 'close-up artisan acoustic guitar piano keys soft warm studio illumination'],
-    [/(?:날씨|비|우산|비오는날|장마|소나기)/, 'cinematic moody rain drops on glass window glowing blurred city neon bokeh'],
-    [/(?:눈|겨울|첫눈|빙판|크리스마스)/, 'pure magical white winter snowfall quiet cozy illuminated town street'],
+    [/(?:날씨|우산|비오는날|장마|소나기)/, 'cinematic moody rain drops on glass window glowing blurred city neon bokeh'],
+    [/(?:겨울|첫눈|빙판|크리스마스)/, 'pure magical white winter snowfall quiet cozy illuminated town street'],
     [/(?:축제|불꽃놀이|파티|클럽|페스티벌)/, 'spectacular vibrant fireworks exploding night sky joyful celebration atmosphere'],
     [/(?:꿀팁|비밀|노하우|비결|치트키|비법)/, 'glowing brilliant lightbulb innovation idea eureka moment cinematic dramatic backdrop'],
   ];
@@ -2211,7 +2211,7 @@ function getSpecificSceneVisualElement(sceneText: string, sceneIdx: number, isTh
   }
 
   // 8. Space, Cosmos & Astronomy
-  if (/(?:우주|태양계|행성|은하|블랙홀|천문|별|지구|물리|양자|외계|우주선|나사)/.test(lower)) {
+  if (/(?:우주|태양계|행성|은하|블랙홀|천문|지구|물리|양자|외계|우주선|나사)/.test(lower)) {
     return `${prefix}breathtaking deep space cosmos with glowing radiant nebula clouds and sparkling planets, epic astrophotography, ${angle}`;
   }
 
@@ -2226,12 +2226,12 @@ function getSpecificSceneVisualElement(sceneText: string, sceneIdx: number, isTh
   }
 
   // 11. History, Palace & Traditional Korea
-  if (/(?:역사|조선|왕|황제|궁궐|유적|고대|전쟁|장군|문화재|사극|한옥)/.test(lower)) {
+  if (/(?:역사|조선|황제|궁궐|유적|고대|전쟁|장군|문화재|사극|한옥)/.test(lower)) {
     return `${prefix}majestic traditional grand royal palace architecture with intricate golden details, epic historical atmosphere, ${angle}, ${light}`;
   }
 
   // 12. Travel, Nature & Scenery
-  if (/(?:여행|관광|명소|해변|휴양지|산|풍경|호수|일출|노을|단풍|바다|오션|등산)/.test(lower)) {
+  if (/(?:여행|관광|명소|해변|휴양지|풍경|호수|일출|노을|단풍|바다|오션|등산)/.test(lower)) {
     return `${prefix}spectacular panoramic horizon with radiant sun casting reflections on calm emerald ocean waves and majestic mountains, ${angle}, ${light}`;
   }
 
@@ -2305,7 +2305,7 @@ function getEnglishTopicAndVisual(
     topicTheme = 'supercar automotive, aerodynamic sleek vehicle';
   } else if (/(?:건강|운동|다이어트|헬스|의사|병원)/.test(combined)) {
     topicTheme = 'healthy vitality, wellness lifestyle, clean energy';
-  } else if (/(?:우주|별|행성|은하|천문)/.test(combined)) {
+  } else if (/(?:우주|행성|은하|천문)/.test(combined)) {
     topicTheme = 'deep space cosmos, glowing nebula stars, epic astronomy';
   } else if (/(?:공포|귀신|미스터리|사건)/.test(combined)) {
     topicTheme = 'mysterious dark atmosphere, eerie fog, cinematic suspense';
@@ -2313,7 +2313,7 @@ function getEnglishTopicAndVisual(
     topicTheme = 'cute adorable animal, fluffy texture, playful mood';
   } else if (/(?:여행|바다|휴양|해변)/.test(combined)) {
     topicTheme = 'breathtaking travel destination, emerald ocean beach, majestic landscape';
-  } else if (/(?:역사|조선|고대|왕)/.test(combined)) {
+  } else if (/(?:역사|조선|고대)/.test(combined)) {
     topicTheme = 'epic historical scenery, traditional architecture, royal dynasty palace';
   } else if (/(?:인공지능|ai|로봇|테크)/.test(combined)) {
     topicTheme = 'futuristic technology, cutting edge AI innovation';
