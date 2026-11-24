@@ -41,7 +41,7 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    emptyOutDir: false,
+    emptyOutDir: true, // 이전 빌드(관리자판) 파일이 남아 구매자 설치 파일에 섞여 들어가지 않게 매번 비운다. public/은 빌드마다 다시 복사된다.
     chunkSizeWarningLimit: 1200,
     rollupOptions: {
       output: {

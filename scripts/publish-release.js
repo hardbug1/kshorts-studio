@@ -35,6 +35,22 @@ if (!fs.existsSync(exePath)) {
   console.error(`[오류] 설치 파일이 없습니다: ${exePath}\n       먼저 npm run dist:win 으로 빌드하세요.`);
   process.exit(1);
 }
+
+// 관리자판(관리자 로그인 포함)이 공개 저장소에 올라가지 않게, 마지막 빌드가 구매자판인지 확인한다.
+const editionMark = path.join(root, 'dist-electron', '.edition');
+const edition = fs.existsSync(editionMark) ? fs.readFileSync(editionMark, 'utf8').trim() : '';
+if (!edition.startsWith('buyer|')) {
+  console.error(`[오류] 마지막 빌드가 구매자판이 아닙니다 (${edition || '표시 없음'}). npm run dist:win 으로 다시 빌드하세요.`);
+  process.exit(1);
+}
+const adminLocal = path.join(root, 'admin.local.json');
+const adminFnv = fs.existsSync(adminLocal) ? String(JSON.parse(fs.readFileSync(adminLocal, 'utf8')).adminKeyFnv || '') : '';
+const assetsDir = path.join(root, 'dist', 'assets');
+if (adminFnv && adminFnv !== '0' && fs.existsSync(assetsDir)
+  && fs.readdirSync(assetsDir).some((f) => fs.readFileSync(path.join(assetsDir, f), 'utf8').includes(adminFnv))) {
+  console.error('[오류] dist/assets 안에 관리자 키 검증값이 남아 있습니다. dist 폴더를 지우고 다시 빌드하세요.');
+  process.exit(1);
+}
 const sha = crypto.createHash('sha256').update(fs.readFileSync(exePath)).digest('hex');
 const shaPath = `${exePath}.sha256`;
 fs.writeFileSync(shaPath, `${sha}  ${exeName}\n`, 'utf8');
