@@ -220,6 +220,7 @@ export const PublishCalendarModal: React.FC<PublishCalendarModalProps> = ({
         onScheduleUpdated?.();
       } else {
         alert(res.error || '발행 실패');
+        await loadScheduledItems(); // 실패 상태를 목록에 반영
       }
     } catch (err: any) {
       alert(`오류: ${err?.message || err}`);

@@ -8265,89 +8265,106 @@ ipcMain.handle('cancel-scheduled-short', async (_, scheduleId: string) => {
   }
 });
 
+/** 예약 항목 하나만 파일에서 다시 읽어 고친다. 업로드하는 몇 분 동안 사용자가 한 취소·변경을 옛 목록으로 덮어쓰지 않는다. */
+function updateScheduledItem(id: string, patch: Partial<ScheduledShortsItem>): ScheduledShortsItem | null {
+  const items = getStoredScheduledShorts();
+  const idx = items.findIndex((i) => i.id === id);
+  if (idx < 0) return null;
+  const updated = { ...items[idx], ...patch };
+  saveStoredScheduledShorts(items.map((it, i) => (i === idx ? updated : it)));
+  return updated;
+}
+
+/** 예약 항목을 유튜브에 올리고 결과대로 상태를 정한다. 업로드 함수는 실패해도 throw 대신 success:false를 돌려준다. */
+async function publishScheduledItem(item: ScheduledShortsItem): Promise<{ item: ScheduledShortsItem | null; uploadRes?: any; error?: string }> {
+  updateScheduledItem(item.id, { status: 'publishing' });
+  let uploadRes: any;
+  let error = '';
+  if (!item.videoPath || !fs.existsSync(item.videoPath)) {
+    error = '업로드할 영상 파일을 찾을 수 없습니다.';
+  } else {
+    try {
+      uploadRes = await executeUploadToYoutubeCore({
+        videoPath: item.videoPath,
+        title: item.title,
+        description: `${item.description || item.title}\n\n#Shorts #쇼츠 #AI쇼츠`,
+        tags: item.tags || ['쇼츠', 'Shorts'],
+        privacyStatus: item.youtubePrivacy || 'public',
+      });
+      if (!uploadRes?.success) error = uploadRes?.error || '유튜브 업로드에 실패했습니다.';
+    } catch (e: any) {
+      error = e?.message || String(e);
+    }
+  }
+  if (error) {
+    console.warn(`[Scheduled Publish] "${item.title}" failed: ${error}`);
+    return { item: updateScheduledItem(item.id, { status: 'failed', errorMessage: error }), uploadRes, error };
+  }
+  return {
+    item: updateScheduledItem(item.id, { status: 'published', publishedAt: new Date().toISOString(), errorMessage: undefined }),
+    uploadRes,
+  };
+}
+
 ipcMain.handle('publish-scheduled-now', async (_, scheduleId: string) => {
   try {
-    const items = getStoredScheduledShorts();
-    const item = items.find((i) => i.id === scheduleId);
+    const item = getStoredScheduledShorts().find((i) => i.id === scheduleId);
     if (!item) {
       return { success: false, error: '예약 항목을 찾을 수 없습니다.' };
     }
-
-    item.status = 'publishing';
-    saveStoredScheduledShorts(items);
-
-    const settings = getStoredSettings();
-    const publishResults: { youtube?: any; telegram?: boolean } = {};
-
-    // 1. YouTube Upload if path available
-    if (item.videoPath && fs.existsSync(item.videoPath)) {
-      try {
-        const desc = `${item.description || item.title}\n\n#Shorts #쇼츠 #AI쇼츠`;
-        const uploadRes = await executeUploadToYoutubeCore({
-          videoPath: item.videoPath,
-          title: item.title,
-          description: desc,
-          tags: item.tags || ['쇼츠', 'Shorts'],
-          privacyStatus: item.youtubePrivacy || 'public',
-        });
-        publishResults.youtube = uploadRes;
-      } catch (ytErr: any) {
-        console.warn('[Scheduled YouTube Upload Warning]:', ytErr?.message || ytErr);
-      }
+    if (item.status === 'publishing') {
+      return { success: false, error: '이미 업로드 중인 항목입니다.' };
     }
 
-    item.status = 'published';
-    item.publishedAt = new Date().toISOString();
-    saveStoredScheduledShorts(items);
-
-    // Update project state
-    const projects = getStoredProjects();
-    const proj = projects.find((p) => p.id === item.projectId);
-    if (proj) {
-      proj.isScheduled = false;
-      proj.publishedAt = item.publishedAt;
-      saveStoredProjects(projects);
+    const result = await publishScheduledItem(item);
+    if (result.error || !result.item) {
+      return { success: false, item: result.item, error: `즉시 발행 실패: ${result.error || '예약 항목이 삭제되었습니다.'}` };
     }
 
-    return { success: true, item, publishResults };
+    const publishedAt = result.item.publishedAt;
+    saveStoredProjects(getStoredProjects().map((p) =>
+      p.id === item.projectId ? { ...p, isScheduled: false, publishedAt } : p
+    ));
+
+    return { success: true, item: result.item, publishResults: { youtube: result.uploadRes } };
   } catch (err: any) {
     return { success: false, error: `즉시 발행 실패: ${err?.message || err}` };
   }
 });
 
+// 업로드 도중 앱이 꺼져 'publishing'에 멈춘 항목은 스케줄러가 다시 집어 가지 않으므로 실패로 돌려 사용자가 재시도하게 한다.
+{
+  const items = getStoredScheduledShorts();
+  if (items.some((i) => i.status === 'publishing')) {
+    saveStoredScheduledShorts(items.map((i) =>
+      i.status === 'publishing' ? { ...i, status: 'failed', errorMessage: '업로드 도중 앱이 종료되었습니다. 다시 발행해 주세요.' } : i
+    ));
+  }
+}
+
 // Periodic background scheduler check (every 60 seconds)
+// 업로드가 60초보다 오래 걸려도 다음 틱이 겹쳐 돌지 않게 막는다(겹치면 같은 영상이 두 번 올라갔다).
+let isSchedulerTickRunning = false;
 setInterval(async () => {
+  if (isSchedulerTickRunning) return;
+  isSchedulerTickRunning = true;
   try {
-    const items = getStoredScheduledShorts();
     const now = Date.now();
-    const dueItems = items.filter(
-      (i) => i.status === 'scheduled' && new Date(i.scheduledTime).getTime() <= now
-    );
+    const dueIds = getStoredScheduledShorts()
+      .filter((i) => i.status === 'scheduled' && new Date(i.scheduledTime).getTime() <= now)
+      .map((i) => i.id);
 
-    for (const item of dueItems) {
-      item.status = 'publishing';
-      saveStoredScheduledShorts(items);
-
-      try {
-        if (item.videoPath && fs.existsSync(item.videoPath)) {
-          const desc = `${item.description || item.title}\n\n#Shorts #쇼츠 #AI쇼츠`;
-          await executeUploadToYoutubeCore({
-            videoPath: item.videoPath,
-            title: item.title,
-            description: desc,
-            tags: item.tags || ['쇼츠', 'Shorts'],
-            privacyStatus: item.youtubePrivacy || 'public',
-          });
-        }
-        item.status = 'published';
-        item.publishedAt = new Date().toISOString();
-      } catch (execErr: any) {
-        item.status = 'failed';
-        item.errorMessage = execErr?.message || String(execErr);
-      }
-      saveStoredScheduledShorts(items);
+    for (const id of dueIds) {
+      // 앞 항목을 올리는 동안 사용자가 취소·변경했을 수 있으니 매번 다시 읽어 확인한다.
+      const item = getStoredScheduledShorts().find((i) => i.id === id);
+      if (!item || item.status !== 'scheduled') continue;
+      await publishScheduledItem(item);
     }
-  } catch {}
+  } catch (err) {
+    console.error('[Scheduled Publish Tick Error]:', err);
+  } finally {
+    isSchedulerTickRunning = false;
+  }
 }, 60000);
 
 // ----------------------------------------------------
