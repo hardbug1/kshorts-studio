@@ -22,6 +22,11 @@ interface PublishCalendarModalProps {
   onScheduleUpdated?: () => void;
 }
 
+/** 현지 시각 기준 'YYYY-MM-DD'. toISOString()은 UTC라 한국에서 0~9시 사이에는 하루 전 날짜가 나온다. */
+export function toLocalDateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export const PublishCalendarModal: React.FC<PublishCalendarModalProps> = ({
   isOpen,
   onClose,
@@ -40,7 +45,7 @@ export const PublishCalendarModal: React.FC<PublishCalendarModalProps> = ({
   // Auto-Distribute Tool State
   const [isAutoDistributeOpen, setIsAutoDistributeOpen] = useState(false);
   const [distributeStartDate, setDistributeStartDate] = useState(
-    new Date(Date.now() + 86400000).toISOString().slice(0, 10)
+    toLocalDateStr(new Date(Date.now() + 86400000))
   );
   const [timeSlotsInput, setTimeSlotsInput] = useState('18:00, 21:00');
   const [intervalDays, setIntervalDays] = useState(1);
@@ -114,7 +119,7 @@ export const PublishCalendarModal: React.FC<PublishCalendarModalProps> = ({
   const getItemsForDate = (dateStr: string) => {
     return scheduledItems.filter((item) => {
       if (!item.scheduledTime) return false;
-      return item.scheduledTime.startsWith(dateStr) && item.status !== 'cancelled';
+      return toLocalDateStr(new Date(item.scheduledTime)) === dateStr && item.status !== 'cancelled';
     });
   };
 
@@ -170,7 +175,8 @@ export const PublishCalendarModal: React.FC<PublishCalendarModalProps> = ({
   // Manual Schedule
   const handleManualSchedule = async () => {
     if (!window.electronAPI || !selectedDateForManual || !manualProjectId) return;
-    const scheduledDateTime = `${selectedDateForManual}T${manualTime}:00.000Z`;
+    // 사용자가 고른 날짜·시각은 현지 시각이다. 끝에 Z를 붙이면 UTC로 저장돼 한국에서는 9시간 늦게(다음 날 새벽) 올라갔다.
+    const scheduledDateTime = new Date(`${selectedDateForManual}T${manualTime}:00`).toISOString();
 
     setLoading(true);
     try {
@@ -341,7 +347,7 @@ export const PublishCalendarModal: React.FC<PublishCalendarModalProps> = ({
               }
 
               const items = getItemsForDate(day.dateStr);
-              const isToday = day.dateStr === today.toISOString().slice(0, 10);
+              const isToday = day.dateStr === toLocalDateStr(today);
 
               return (
                 <div

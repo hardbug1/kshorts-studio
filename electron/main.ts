@@ -8206,7 +8206,8 @@ ipcMain.handle('auto-distribute-schedule', async (_, config: AutoDistributeConfi
       targetDate.setDate(targetDate.getDate() + dayOffset);
 
       const [hours, minutes] = (timeSlots[slotIdx] || '18:00').split(':').map(Number);
-      targetDate.setHours(hours || 18, minutes || 0, 0, 0);
+      // `hours || 18`은 자정(0시)을 18시로 바꿨다. 숫자가 아닐 때만 기본값을 쓴다.
+      targetDate.setHours(Number.isFinite(hours) ? hours : 18, Number.isFinite(minutes) ? minutes : 0, 0, 0);
 
       const scheduledItem: ScheduledShortsItem = {
         id: `sched_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
