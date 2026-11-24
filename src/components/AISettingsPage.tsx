@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Bot, Key, Sparkles, Save, Check, Folder, ExternalLink, Image as ImageIcon, Video, Layers, ChevronRight, Info, Share2, Mic, Activity, Cpu, Zap, RefreshCw } from 'lucide-react';
+import { Bot, Key, Sparkles, Save, Check, Folder, ExternalLink, Image as ImageIcon, Video, Layers, ChevronRight, Info, Share2, Mic, Activity, Cpu, Zap } from 'lucide-react';
 import type { AppSettings } from '../types';
 import { PORTAL_KO } from '../constants/portal';
 
@@ -31,7 +31,6 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({
     settings.gpuEncoder || 'auto'
   );
   const [outputDir, setOutputDir] = useState(settings.outputDirectory || '');
-  const [githubRepo, setGithubRepo] = useState(settings.githubRepo || '');
   const [saved, setSaved] = useState(false);
 
   // Test states
@@ -64,7 +63,6 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({
       subscriptionLlm,
       gpuEncoder,
       outputDirectory: outputDir.trim() || undefined,
-      githubRepo: githubRepo.trim() || undefined,
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -644,30 +642,6 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({
         </div>
       </div>
 
-      {/* 5. Auto-Update & GitHub Distribution */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-6 space-y-3 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <RefreshCw className="w-4 h-4 text-blue-500" />
-            <h2 className="text-sm font-extrabold text-slate-900">프로그램 자동 업데이트 & GitHub 연동</h2>
-          </div>
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-            정식 출시 버전 v1.4.7
-          </span>
-        </div>
-        <p className="text-xs text-slate-500 leading-relaxed font-medium">
-          GitHub 저장소(<code>소유자/저장소명</code>)를 등록하면, 새 버전(릴리즈)이 배포되었을 때 프로그램이 자동으로 업데이트를 감지하여 원클릭으로 최신 설치 파일을 적용합니다.
-        </p>
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            value={githubRepo}
-            onChange={(e) => setGithubRepo(e.target.value)}
-            placeholder="예: username/kshorts-desktop"
-            className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-700 font-mono focus:outline-none focus:border-blue-500 font-medium"
-          />
-        </div>
-      </div>
     </div>
   );
 };

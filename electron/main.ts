@@ -5119,7 +5119,8 @@ ipcMain.handle('check-update', async () => {
     let remoteDownloadUrl = '';
     let remoteSha256 = '';
     // 업데이트 배포 저장소(공개, 설치 파일만 올림). 소스 저장소는 비공개로 따로 둔다.
-    const targetGithubRepo = (settings.githubRepo || DEFAULT_UPDATE_REPO).trim();
+    // 설정값으로 저장소를 바꿀 수 있으면, 체크섬도 그 저장소에서 받으므로 "이 저장소를 넣으세요" 한 줄로 남의 설치 파일이 실행된다.
+    const targetGithubRepo = DEFAULT_UPDATE_REPO;
 
     // ① update.json(릴리스에 함께 올림) — GitHub API 횟수 제한(시간당 60회)이 없어 자주 확인해도 된다
     let manifestChecked = false;
@@ -5272,7 +5273,8 @@ ipcMain.handle('perform-update', async (event, params?: { downloadUrl?: string; 
         // 화면에서 넘어온 주소는 메인 프로세스가 직접 확인한 주소와 같을 때만 받고, 체크섬도 그때 받은 값을 쓴다.
         const verified = lastCheckedInstaller && lastCheckedInstaller.downloadUrl === downloadUrl ? lastCheckedInstaller : null;
         const expectedSha256 = verified && /^[a-f0-9]{64}$/.test(verified.sha256) ? verified.sha256 : '';
-        if (!isTrustedUpdateUrl(downloadUrl) || !expectedSha256) {
+        const isOfficialRelease = downloadUrl.startsWith(`https://github.com/${DEFAULT_UPDATE_REPO}/releases/download/`);
+        if (!isOfficialRelease || !isTrustedUpdateUrl(downloadUrl) || !expectedSha256) {
           return {
             success: false,
             error: '업데이트 설치 파일의 출처 또는 SHA-256 체크섬을 확인할 수 없어 자동 설치를 중단했습니다. 공식 릴리즈 페이지에서 직접 내려받아 설치해 주세요.',
