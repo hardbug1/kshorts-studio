@@ -6269,6 +6269,37 @@ const FALLBACK_AUTONOMOUS_TOPICS: Record<string, { topic: string; title: string 
   ],
 };
 
+/** 채널 분야 문구 → 내장 주제 분류. 구체적인 분야부터 확인하고, 처음 맞는 분야만 쓴다. */
+const NICHE_FALLBACK_RULES: Array<[RegExp, string[]]> = [
+  [/공포|괴담|귀신|흉가|오싹/, ['horror_thriller', 'urban_legend']],
+  [/초자연|불가사의|UFO|외계인/i, ['paranormal_phenomenon']],
+  [/미제|범죄|스릴러/, ['unsolved_crime']],
+  [/도시전설/, ['urban_legend']],
+  [/(?<!흑)역사/, ['mystery_history']],
+  [/영화|복선/, ['cinema_culture']],
+  [/커뮤니티|블라인드|사연/, ['community_story']],
+  [/핫이슈|속보|뉴스|시사/, ['news_issue']],
+  [/기업|마케팅|브랜드/, ['billionaire_marketing']],
+  [/인공지능|미래|사라질 직업|(?:^|[^A-Za-z])AI(?:$|[^A-Za-z])/i, ['future_ai_tech']],
+  [/부자|재테크|투자|경제/, ['money_mind']],
+  [/반려|강아지|고양이/, ['pets']],
+  [/요리|레시피|에어프라이어/, ['cooking_recipe']],
+  [/운전|차량|자동차|기름값/, ['car_driving']],
+  [/여행|항공권/, ['travel']],
+  [/직장|회사|칼퇴|생산성/, ['office_worker']],
+  [/아이폰|갤럭시|스마트폰|컴퓨터|(?:^|[^A-Za-z])IT(?:$|[^A-Za-z])/i, ['it_tech']],
+  [/인체|뇌의|수면/, ['brain_body_science']],
+  [/심리|인간관계|호감/, ['psychology_relation']],
+  [/우주|블랙홀|심해|과학/, ['space_science']],
+  [/법률|문화 충격|기상천외/, ['shocking_facts']],
+  [/건강|식습관|홈트|운동|다이어트|스트레칭|거북목/, ['health_habit']],
+  [/살림|꿀팁|생활|청소|세탁|상식|자취/, ['life_tips']],
+];
+
+function nicheFallbackCategories(niche: string): string[] {
+  return NICHE_FALLBACK_RULES.find(([rule]) => rule.test(niche))?.[1] || [];
+}
+
 async function generateAutonomousTopic(
   channelNiche: string,
   pastTopics: string[] = [],
@@ -6321,8 +6352,12 @@ async function generateAutonomousTopic(
     }
   }
 
-  // Fallback to rich built-in pool (all categories)
-  const allFallbacks = Object.values(FALLBACK_AUTONOMOUS_TOPICS).flat();
+  // AI를 쓸 수 없으면 채널 분야에 맞는 내장 주제만 쓴다. 다른 분야 영상이 자동 공개되면 안 되므로 맞는 분야가 없으면 만들지 않는다.
+  const categories = nicheFallbackCategories(nicheClean);
+  const allFallbacks = categories.flatMap((key) => FALLBACK_AUTONOMOUS_TOPICS[key] || []);
+  if (allFallbacks.length === 0) {
+    throw new Error(`'${nicheClean}' 분야의 주제를 만들려면 Gemini API 키가 필요합니다. AI 설정에서 키를 확인해 주세요.`);
+  }
 
   const unused = allFallbacks.filter((item) => !pastTopics.some((p) => p.includes(item.topic) || item.topic.includes(p)));
   const candidates = unused.length > 0 ? unused : allFallbacks;
