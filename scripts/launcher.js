@@ -18,6 +18,17 @@ async function runCommand(cmd, args, options = {}) {
   });
 }
 
+function newestMtime(entries) {
+  let newest = 0;
+  for (const entry of entries) {
+    const full = path.join(rootDir, entry);
+    if (!fs.existsSync(full)) continue;
+    const stat = fs.statSync(full);
+    newest = Math.max(newest, stat.isDirectory() ? newestMtime(fs.readdirSync(full).map((n) => path.join(entry, n))) : stat.mtimeMs);
+  }
+  return newest;
+}
+
 async function main() {
   if (isDev) {
     console.log('🚀 Starting K-Shorts Studio in Development Mode (Vite Dev Server)...');
@@ -31,9 +42,9 @@ async function main() {
   // Fast Production Launch
   console.log('⚡ Launching K-Shorts Studio (Ultra-Fast Engine)...');
 
-  // Check if frontend is built
-  if (!fs.existsSync(distIndex)) {
-    console.log('📦 Initial build not detected. Building bundle once for fast future launches...');
+  // 빌드가 없거나, git pull 등으로 화면 소스가 빌드보다 새로우면 다시 빌드한다(예전엔 옛 화면이 그대로 떴다)
+  if (!fs.existsSync(distIndex) || newestMtime(['src', 'index.html', 'vite.config.ts', 'package.json']) > fs.statSync(distIndex).mtimeMs) {
+    console.log('📦 Frontend sources changed (or no build yet). Building bundle...');
     await runCommand('npm', ['run', 'build:vite']);
   }
 

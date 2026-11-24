@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Music, Volume2, Sparkles, Check, Play, Square, Flame, ShieldCheck } from 'lucide-react';
 import { BGM_TRACKS } from '../constants/bgm';
 
@@ -43,6 +43,9 @@ export const BgmSelector: React.FC<BgmSelectorProps> = ({
 }) => {
   const [playingTrackId, setPlayingTrackId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // 다른 화면으로 넘어가도 미리듣기가 계속 재생되지 않게 멈춘다
+  useEffect(() => () => audioRef.current?.pause(), []);
 
   const handlePreview = (e: React.MouseEvent, trackId: string, filename: string) => {
     e.stopPropagation();

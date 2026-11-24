@@ -132,6 +132,17 @@ function getTimeUntilNextRun(nextRunAt?: string): string {
   return `약 ${diffMinutes}분 후 실행 예정`;
 }
 
+/** 1초마다 바뀌는 시계. 따로 떼어 두어 페이지 전체가 매초 다시 그려지지 않게 한다. */
+function LiveClock({ short = false }: { short?: boolean }) {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  return <>{short ? hhmm : `${hhmm}:${String(now.getSeconds()).padStart(2, '0')}`}</>;
+}
+
 export const AutoPilotPage: React.FC<AutoPilotPageProps> = ({ settings, onNavigateToProjects, onNavigateToPublish }) => {
   const [perf, setPerf] = useState<YouTubePerformanceAnalysis | null>(null);
   const [perfLoading, setPerfLoading] = useState(false);
@@ -178,21 +189,7 @@ export const AutoPilotPage: React.FC<AutoPilotPageProps> = ({ settings, onNaviga
   useEscapeKey(isCommentScopeModalOpen, () => setIsCommentScopeModalOpen(false));
   const [liveStatus, setLiveStatus] = useState<AutoPilotStatusEvent | null>(null);
   const [triggerResult, setTriggerResult] = useState<{ success: boolean; message: string; videoUrl?: string } | null>(null);
-  const [currentTime, setCurrentTime] = useState<string>('');
 
-  // Clock ticker for current time
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      const h = String(now.getHours()).padStart(2, '0');
-      const m = String(now.getMinutes()).padStart(2, '0');
-      const s = String(now.getSeconds()).padStart(2, '0');
-      setCurrentTime(`${h}:${m}:${s}`);
-    };
-    updateTime();
-    const timer = setInterval(updateTime, 1000);
-    return () => clearInterval(timer);
-  }, []);
 
   // Fetch / Refresh Config Function (full refresh only on initial load or manual refresh button)
   const fetchConfig = async (showSpin = false) => {
@@ -446,7 +443,7 @@ export const AutoPilotPage: React.FC<AutoPilotPageProps> = ({ settings, onNaviga
               <span className={`text-xs font-extrabold uppercase tracking-wider ${config.enabled ? 'text-purple-200' : 'text-slate-500'}`}>
                 {config.enabled ? '오토파일럿 가동 중 (활성화)' : '오토파일럿 대기 중 (비활성화)'}
               </span>
-              <span className="text-slate-400 text-xs">• 현재 시각: <b className="text-white font-mono">{currentTime || '--:--:--'}</b></span>
+              <span className="text-slate-400 text-xs">• 현재 시각: <b className="text-white font-mono"><LiveClock /></b></span>
             </div>
 
             <h2 className="text-xl md:text-2xl font-black tracking-tight">
@@ -580,7 +577,7 @@ export const AutoPilotPage: React.FC<AutoPilotPageProps> = ({ settings, onNaviga
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
                   <span>기준 시작 시각 (24시간 형식)</span>
-                  <span className="text-slate-400 text-[11px] font-medium">현재: {currentTime.slice(0, 5)}</span>
+                  <span className="text-slate-400 text-[11px] font-medium">현재: <LiveClock short /></span>
                 </label>
                 <input
                   type="time"

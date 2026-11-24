@@ -1124,18 +1124,16 @@ export default function App() {
           />
         )}
 
-        {/* Excel/CSV Batch Bulk Generator Modal */}
-        {isBatchModalOpen && (
-          <BatchGeneratorModal
-            isOpen={isBatchModalOpen}
-            onClose={() => setIsBatchModalOpen(false)}
-            onBatchDone={() => {
-              if (window.electronAPI) {
-                window.electronAPI.getProjects().then(setProjects).catch(console.error);
-              }
-            }}
-          />
-        )}
+        {/* Excel/CSV Batch Bulk Generator Modal — 닫아도 진행 상황이 남도록 항상 마운트(모달이 isOpen 으로 스스로 숨김) */}
+        <BatchGeneratorModal
+          isOpen={isBatchModalOpen}
+          onClose={() => setIsBatchModalOpen(false)}
+          onBatchDone={() => {
+            if (window.electronAPI) {
+              window.electronAPI.getProjects().then(setProjects).catch(console.error);
+            }
+          }}
+        />
 
         {/* Long-to-Shorts Video Clipper Modal */}
         {isLongToShortsModalOpen && (

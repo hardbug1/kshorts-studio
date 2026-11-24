@@ -50,7 +50,9 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
               </button>
               <button
                 onClick={() => {
-                  localStorage.removeItem('kshorts_user');
+                  // 실제 저장 키(kshorts_user 는 쓰이지 않는 키라 초기화가 아무 일도 안 했다)
+                  localStorage.removeItem('kshorts_auth');
+                  localStorage.removeItem('kshorts_tokens');
                   window.location.reload();
                 }}
                 className="py-2.5 px-3 bg-slate-700 hover:bg-slate-600 rounded-xl text-xs font-medium text-slate-300 transition-all"
