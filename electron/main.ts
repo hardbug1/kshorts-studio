@@ -3825,6 +3825,8 @@ async function executeRenderPipeline(
     }
   };
 
+  // 렌더가 어느 단계에서 실패해도 지울 임시 파일·폴더 (예전엔 ffmpeg 단계까지 가야만 지워져 실패할 때마다 쌓였다)
+  const renderTempPaths: string[] = [];
   try {
     // 1. Script preparation
     sendProgress('generating_script', 15, '대본 검증 및 정리 중...');
@@ -3932,10 +3934,9 @@ async function executeRenderPipeline(
     fs.writeFileSync(assFilePath, assContent, 'utf8');
 
     // Safe ASCII Temp path for libass subtitle filter and temp video output in FFmpeg
-    const safeAssPath = path.join(os.tmpdir(), `kshorts_sub_${id}_${Date.now()}.ass`);
     const safeTempVideoPath = path.join(os.tmpdir(), `kshorts_out_${id}_${Date.now()}.mp4`);
     const safeTempAudioPath = path.join(os.tmpdir(), `kshorts_audio_${id}_${Date.now()}.mp3`);
-    fs.writeFileSync(safeAssPath, assContent, 'utf8');
+    renderTempPaths.push(safeTempVideoPath, safeTempAudioPath);
     fs.copyFileSync(audioFilePath, safeTempAudioPath);
 
     // 4. 100% Dynamic AI Visual Scene Frames Generation
@@ -3954,6 +3955,7 @@ async function executeRenderPipeline(
 
     const scenesTempDir = path.join(os.tmpdir(), `kshorts_scenes_${id}_${Date.now()}`);
     fs.mkdirSync(scenesTempDir, { recursive: true });
+    renderTempPaths.push(scenesTempDir);
 
     // Track uniqueness within current video to eliminate duplicate visuals
     const usedHashesInCurrentShort = new Set<string>();
@@ -4343,14 +4345,6 @@ async function executeRenderPipeline(
       } else {
         throw new Error('FFmpeg render failed completely');
       }
-    } finally {
-      // Clean up safe temporary files
-      try {
-        if (fs.existsSync(safeAssPath)) fs.unlinkSync(safeAssPath);
-        if (fs.existsSync(safeTempAudioPath)) fs.unlinkSync(safeTempAudioPath);
-        if (fs.existsSync(safeTempVideoPath)) fs.unlinkSync(safeTempVideoPath);
-        fs.rmSync(scenesTempDir, { recursive: true, force: true });
-      } catch {}
     }
 
     // Extract high-resolution title-aligned thumbnail from 0.5s of the rendered video
@@ -4395,6 +4389,14 @@ async function executeRenderPipeline(
     console.error('Render error:', err);
     sendProgress('error', 0, '쇼츠 생성 중 오류 발생', err.message || String(err));
     throw err;
+  } finally {
+    for (const p of renderTempPaths) {
+      try {
+        fs.rmSync(p, { recursive: true, force: true });
+      } catch (cleanupErr) {
+        console.warn('[Render Temp Cleanup Warning]:', p, cleanupErr);
+      }
+    }
   }
 }
 
