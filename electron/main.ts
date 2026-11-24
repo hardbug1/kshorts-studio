@@ -1279,6 +1279,8 @@ const EDGE_TTS_STAMP = path.join(EDGE_TTS_ROOT, 'installed.json');
 const EDGE_TTS_REFRESH_MS = 14 * 24 * 60 * 60 * 1000;
 const EMBED_PY_VERSION = '3.12.8';
 const EMBED_PY_URL = `https://www.python.org/ftp/python/${EMBED_PY_VERSION}/python-${EMBED_PY_VERSION}-embed-amd64.zip`;
+// python.org 가 배포하는 SPDX 문서(…embed-amd64.zip.spdx.json)의 SHA-256. 버전을 바꾸면 같이 바꾼다.
+const EMBED_PY_SHA256 = '8d3f33be9eb810f23c102f08475af2854e50484b8e4e06275e937be61ce3d2fb';
 const GET_PIP_URL = 'https://bootstrap.pypa.io/get-pip.py';
 
 type EdgeTtsStatus = (message: string) => void;
@@ -1378,6 +1380,11 @@ async function installEmbeddedPython(onStatus?: EdgeTtsStatus): Promise<PyComman
   fs.mkdirSync(EDGE_TTS_ROOT, { recursive: true });
   const zipPath = path.join(EDGE_TTS_ROOT, 'python-embed.zip');
   await downloadToFile(EMBED_PY_URL, zipPath);
+  const zipSha = crypto.createHash('sha256').update(fs.readFileSync(zipPath)).digest('hex');
+  if (zipSha !== EMBED_PY_SHA256) {
+    fs.rmSync(zipPath, { force: true });
+    throw new Error('내려받은 Python 파일의 체크섬이 맞지 않아 설치를 중단했습니다. 네트워크를 확인한 뒤 다시 시도해주세요.');
+  }
   fs.rmSync(EDGE_TTS_PY_DIR, { recursive: true, force: true });
   const ex = await runProcess('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
     `Expand-Archive -LiteralPath '${zipPath.replace(/'/g, "''")}' -DestinationPath '${EDGE_TTS_PY_DIR.replace(/'/g, "''")}' -Force`], { timeoutMs: 120000 });
@@ -4648,38 +4655,7 @@ async function executeUploadToYoutubeCore(params: {
     }
 
     // 1. Refresh Access Token using Refresh Token with network retry
-    const tokenRes = await fetchWithNetworkRetry(
-      'https://oauth2.googleapis.com/token',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          client_id: youtubeClientId.trim(),
-          client_secret: youtubeClientSecret.trim(),
-          refresh_token: youtubeRefreshToken.trim(),
-          grant_type: 'refresh_token',
-        }),
-      },
-      3,
-      2000,
-      15000
-    );
-
-    if (!tokenRes.ok) {
-      const err = await tokenRes.text();
-      if (err.includes('invalid_grant') || err.includes('expired or revoked')) {
-        throw new Error(
-          'Google OAuth Refresh Token이 만료되었습니다. [플랫폼 연동] 메뉴에서 Refresh Token을 재발급받아 등록해주세요.'
-        );
-      }
-      throw new Error(`Google OAuth 토큰 갱신 실패 (${tokenRes.status}): ${err}`);
-    }
-
-    const tokenData: any = await tokenRes.json();
-    const accessToken = tokenData.access_token;
-    if (!accessToken) {
-      throw new Error('Access Token을 획득하지 못했습니다.');
-    }
+    const accessToken = await refreshGoogleAccessToken(youtubeClientId, youtubeClientSecret, youtubeRefreshToken);
 
     // 2. Prepare Resumable Upload Session (Privacy Status: PUBLIC - 공개 업로드)
     const videoFileSize = fs.statSync(videoPath).size;
@@ -5515,38 +5491,7 @@ ipcMain.handle('test-youtube-connection', async (_, { clientId, clientSecret, re
     }
 
     // 1. Google OAuth Token Refresh with network retry
-    const tokenRes = await fetchWithNetworkRetry(
-      'https://oauth2.googleapis.com/token',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          client_id: clientId.trim(),
-          client_secret: clientSecret.trim(),
-          refresh_token: refreshToken.trim(),
-          grant_type: 'refresh_token',
-        }),
-      },
-      2,
-      1500,
-      15000
-    );
-
-    if (!tokenRes.ok) {
-      const errText = await tokenRes.text();
-      let detail = 'OAuth 인증 실패';
-      try {
-        const errJson = JSON.parse(errText);
-        detail = errJson.error_description || errJson.error || detail;
-      } catch {}
-      return { success: false, error: `Google OAuth 토큰 갱신 실패: ${detail}` };
-    }
-
-    const tokenData: any = await tokenRes.json();
-    const accessToken = tokenData.access_token;
-    if (!accessToken) {
-      return { success: false, error: 'Access Token 발급에 실패했습니다.' };
-    }
+    const accessToken = await refreshGoogleAccessToken(clientId, clientSecret, refreshToken);
 
     // 2. Tokeninfo Check for Scopes (upload + force-ssl)
     let hasUploadScope = false;
@@ -5609,27 +5554,7 @@ ipcMain.handle('get-youtube-live-stats', async () => {
 
   try {
     // 1. Refresh Access Token
-    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: youtubeClientId.trim(),
-        client_secret: youtubeClientSecret.trim(),
-        refresh_token: youtubeRefreshToken.trim(),
-        grant_type: 'refresh_token',
-      }),
-    });
-
-    if (!tokenRes.ok) {
-      const errText = await tokenRes.text();
-      return { success: false, error: `Google OAuth 토큰 갱신 실패: ${errText.slice(0, 100)}` };
-    }
-
-    const tokenData: any = await tokenRes.json();
-    const accessToken = tokenData.access_token;
-    if (!accessToken) {
-      return { success: false, error: 'Access Token 발급에 실패했습니다.' };
-    }
+    const accessToken = await refreshGoogleAccessToken(youtubeClientId, youtubeClientSecret, youtubeRefreshToken);
 
     // 2. Fetch Channel Info & Statistics
     const channelRes = await fetch('https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,contentDetails&mine=true', {
@@ -6543,27 +6468,47 @@ function pickFollowUpCandidate(analysis: PerformanceAnalysis, alreadyFollowedIds
   return analysis.breakouts.find((v) => !used.has(v.id)) || null;
 }
 
+/** Google OAuth Refresh Token 으로 Access Token 을 받는다. 실패하면 화면에 보여줄 문구로 throw. */
+async function refreshGoogleAccessToken(clientId: string, clientSecret: string, refreshToken: string): Promise<string> {
+  const tokenRes = await fetchWithNetworkRetry(
+    'https://oauth2.googleapis.com/token',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: clientId.trim(),
+        client_secret: clientSecret.trim(),
+        refresh_token: refreshToken.trim(),
+        grant_type: 'refresh_token',
+      }),
+    },
+    3,
+    2000,
+    15000
+  );
+  if (!tokenRes.ok) {
+    const errText = await tokenRes.text();
+    if (errText.includes('invalid_grant') || errText.includes('expired or revoked')) {
+      throw new Error('Google OAuth Refresh Token이 만료되었습니다. [플랫폼 연동] 메뉴에서 Refresh Token을 재발급받아 등록해주세요.');
+    }
+    let detail = errText.slice(0, 200);
+    try {
+      const errJson = JSON.parse(errText);
+      detail = errJson.error_description || errJson.error || detail;
+    } catch {}
+    throw new Error(`Google OAuth 토큰 갱신 실패 (${tokenRes.status}): ${detail}`);
+  }
+  const tokenData: any = await tokenRes.json();
+  if (!tokenData?.access_token) throw new Error('Access Token 발급에 실패했습니다.');
+  return tokenData.access_token;
+}
+
 async function getYouTubeAccessTokenFromSettings(settings: AppSettings): Promise<string> {
   const { youtubeClientId, youtubeClientSecret, youtubeRefreshToken } = settings;
   if (!youtubeClientId || !youtubeClientSecret || !youtubeRefreshToken) {
     throw new Error('유튜브 OAuth 연동 정보가 등록되어 있지 않습니다. [플랫폼 연동 세팅]에서 먼저 연동해주세요.');
   }
-  const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: youtubeClientId.trim(),
-      client_secret: youtubeClientSecret.trim(),
-      refresh_token: youtubeRefreshToken.trim(),
-      grant_type: 'refresh_token',
-    }),
-  });
-  if (!tokenRes.ok) {
-    throw new Error(`Google OAuth 토큰 갱신 실패 (${tokenRes.status})`);
-  }
-  const tokenData: any = await tokenRes.json();
-  if (!tokenData?.access_token) throw new Error('Access Token 발급에 실패했습니다.');
-  return tokenData.access_token;
+  return refreshGoogleAccessToken(youtubeClientId, youtubeClientSecret, youtubeRefreshToken);
 }
 
 /** 업로드 재생목록에서 최근 영상 N개의 조회수/좋아요/댓글 수치를 숫자로 가져온다. (API 쿼터 약 1+ceil(N/50)*2점) */
