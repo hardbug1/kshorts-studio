@@ -513,19 +513,24 @@ export default function App() {
           customScenes: scenesForRender,
         });
 
+        // 메인 프로세스가 저장한 썸네일·videoUrl을 이 저장이 덮어써 지우지 않게 렌더 결과를 그대로 반영한다.
         newProject.status = 'done';
         newProject.progressPercent = 100;
-        newProject.statusMessage = '쇼츠 제작 완료!';
+        newProject.statusMessage = result.degraded
+          ? '⚠️ 장면 합성 실패로 첫 장면만 쓴 대체 영상입니다. 자동 업로드하지 않았습니다.'
+          : '쇼츠 제작 완료!';
         newProject.videoPath = result.videoPath;
-        newProject.videoUrl = result.videoUrl;
+        newProject.videoUrl = `file://${result.videoPath}`;
+        newProject.thumbnailPath = result.thumbnailPath;
+        newProject.thumbnailUrl = result.thumbnailPath ? `file://${result.thumbnailPath}` : undefined;
 
         await window.electronAPI.saveProject(newProject);
         setProjects((prev) => [newProject, ...prev.filter((p) => p.id !== projectId)]);
         setCurrentProject(newProject);
         setIsVideoModalOpen(true);
 
-        // Auto-Upload to YouTube if enabled in settings
-        if (settings.youtubeAutoUpload && settings.youtubeClientId && result.videoPath) {
+        // Auto-Upload to YouTube if enabled in settings (대체 영상은 올리지 않는다)
+        if (settings.youtubeAutoUpload && settings.youtubeClientId && result.videoPath && !result.degraded) {
           console.log('[Auto-Upload] Triggering automatic YouTube upload...');
           window.electronAPI
             .uploadToYoutube({

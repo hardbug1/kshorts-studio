@@ -7,7 +7,7 @@ export const electronAPI = {
     ipcRenderer.invoke('generate-script', params),
 
   // Full Pipeline Render (Script -> Audio -> ASS -> FFmpeg Video)
-  renderShorts: (params: RenderShortsRequest): Promise<{ videoPath: string; videoUrl: string }> => 
+  renderShorts: (params: RenderShortsRequest): Promise<{ success: boolean; degraded?: boolean; videoPath: string; audioPath: string; thumbnailPath?: string }> => 
     ipcRenderer.invoke('render-shorts', params),
 
   // Progress listener

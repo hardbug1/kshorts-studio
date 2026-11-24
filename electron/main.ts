@@ -27,8 +27,8 @@ const execFileAsync = promisify(execFile);
  * ffmpeg/ffprobe를 셸 없이 인자 배열로 실행한다.
  * 사용자가 고른 파일 경로처럼 바깥에서 들어온 값은 반드시 이 함수로 넘긴다(따옴표·%·& 등으로 명령이 바뀌지 않게).
  */
-function runFfTool(bin: 'ffmpeg' | 'ffprobe', args: string[]): Promise<{ stdout: string; stderr: string }> {
-  return execFileAsync(bin, args, { maxBuffer: 64 * 1024 * 1024, windowsHide: true, encoding: 'utf8' }) as Promise<{ stdout: string; stderr: string }>;
+function runFfTool(bin: 'ffmpeg' | 'ffprobe', args: string[], cwd?: string): Promise<{ stdout: string; stderr: string }> {
+  return execFileAsync(bin, args, { cwd, maxBuffer: 64 * 1024 * 1024, windowsHide: true, encoding: 'utf8' }) as Promise<{ stdout: string; stderr: string }>;
 }
 
 // ----------------------------------------------------
@@ -3727,15 +3727,21 @@ async function buildSfxTrack(
     // Limit to at most 12 cues to maintain clean acoustic balance
     const limitedCues = cues.slice(0, 12);
 
-    const inputArgs = limitedCues.map((c) => `-i "${c.filePath.replace(/\\/g, '/')}"`).join(' ');
     const delayFilters = limitedCues
       .map((c, i) => `[${i}:a]adelay=${c.timeMs}|${c.timeMs},volume=${c.volume.toFixed(2)}[s${i}]`)
       .join(';');
     const mixInputs = limitedCues.map((_, i) => `[s${i}]`).join('');
     const mixFilter = `${mixInputs}amix=inputs=${limitedCues.length}:dropout_transition=2:normalize=0[sfx_out]`;
 
-    const cmd = `ffmpeg -y ${inputArgs} -filter_complex "${delayFilters};${mixFilter}" -map "[sfx_out]" -t ${Math.ceil(totalDurationSec)} -c:a pcm_s16le "${outputWavPath.replace(/\\/g, '/')}"`;
-    await execAsync(cmd);
+    await runFfTool('ffmpeg', [
+      '-y',
+      ...limitedCues.flatMap((c) => ['-i', c.filePath]),
+      '-filter_complex', `${delayFilters};${mixFilter}`,
+      '-map', '[sfx_out]',
+      '-t', String(Math.ceil(totalDurationSec)),
+      '-c:a', 'pcm_s16le',
+      outputWavPath,
+    ]);
     return fs.existsSync(outputWavPath) && fs.statSync(outputWavPath).size > 0;
   } catch (err) {
     console.warn('[SFX Track Build Warning, continuing without SFX]:', err);
@@ -3747,7 +3753,7 @@ async function buildSfxTrack(
 async function executeRenderPipeline(
   params: RenderShortsRequest,
   onProgress?: (status: string, progress: number, message: string, errorDetails?: string) => void
-): Promise<{ success: boolean; videoPath: string; audioPath: string; thumbnailPath?: string }> {
+): Promise<{ success: boolean; degraded?: boolean; videoPath: string; audioPath: string; thumbnailPath?: string }> {
   const { id, title, prompt, script, voiceId, templateId, fontId, durationSeconds } = params;
   // id는 파일 이름과 ffmpeg 명령에 그대로 들어가므로 영문·숫자·_- 만 허용한다 (앱이 만드는 id는 모두 이 형식).
   if (!/^[A-Za-z0-9_-]{1,120}$/.test(String(id || ''))) {
@@ -3830,9 +3836,9 @@ async function executeRenderPipeline(
     // Measure exact audio duration
     let actualDuration = durationSeconds || 30;
     try {
-      const { stdout } = await execAsync(
-        `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${audioFilePath}"`
-      );
+      const { stdout } = await runFfTool('ffprobe', [
+        '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', audioFilePath,
+      ]);
       const parsed = parseFloat(stdout.trim());
       if (!isNaN(parsed) && parsed > 0) {
         actualDuration = parsed;
@@ -4108,6 +4114,9 @@ async function executeRenderPipeline(
     const hasBgm = Boolean(resolvedBgmPath && fs.existsSync(resolvedBgmPath));
     const bgmVolume = typeof params.bgmVolume === 'number' ? params.bgmVolume : (settings.defaultBgmVolume || 0.22);
 
+    // 장면 합성이 실패해 첫 장면 하나만 띄운 대체 영상을 만들었는지. 이 경우 자동 업로드하지 않는다.
+    let isDegradedRender = false;
+
     // 6. FFmpeg Multi-Scene Dynamic Video & Ducked Audio Composition
     sendProgress('rendering_video', 85, hasBgm ? 'FFmpeg 모션 씬 & BGM 오디오 덕킹 믹싱 중...' : 'FFmpeg 다이내믹 모션 씬 합성 중...');
 
@@ -4121,15 +4130,10 @@ async function executeRenderPipeline(
     const useCrossfade = transitionType === 'fade' && lastSceneIdx > 0 && sceneDurNum > 1;
     const clipDur = (i: number) => (useCrossfade && i < lastSceneIdx ? sceneDurNum + XFADE_SEC : sceneDurNum);
 
-    const inputArgs = sceneMediaList.map((m, i) => {
-      const safePath = m.path.replace(/\\/g, '/');
-      if (m.type === 'video') {
-        return `-stream_loop -1 -t ${clipDur(i).toFixed(3)} -i "${safePath}"`;
-      } else {
-        // 이미지는 한 장만 넣고 zoompan이 장면 길이만큼 프레임을 만든다 (반복 입력이면 프레임마다 d개씩 만들어 버린다).
-        return `-i "${safePath}"`;
-      }
-    }).join(' ');
+    // 이미지는 한 장만 넣고 zoompan이 장면 길이만큼 프레임을 만든다 (반복 입력이면 프레임마다 d개씩 만들어 버린다).
+    const sceneInputArgs = sceneMediaList.flatMap((m, i) =>
+      m.type === 'video' ? ['-stream_loop', '-1', '-t', clipDur(i).toFixed(3), '-i', m.path] : ['-i', m.path]
+    );
 
     const filterChains: string[] = [];
     for (let i = 0; i < sceneMediaList.length; i++) {
@@ -4211,18 +4215,18 @@ async function executeRenderPipeline(
     // Audio Inputs & Sidechain Compression Ducking + SFX & Fadeout:
     const voiceInputIdx = sceneMediaList.length;
     let nextAudioInputIdx = voiceInputIdx + 1;
-    let audioInputs = `-i "${safeTempAudioPath.replace(/\\/g, '/')}"`;
+    const audioInputArgs = ['-i', safeTempAudioPath];
 
     let bgmInputIdx = -1;
     if (hasBgm) {
       bgmInputIdx = nextAudioInputIdx++;
-      audioInputs += ` -stream_loop -1 -i "${resolvedBgmPath.replace(/\\/g, '/')}"`;
+      audioInputArgs.push('-stream_loop', '-1', '-i', resolvedBgmPath);
     }
 
     let sfxInputIdx = -1;
     if (hasSfx) {
       sfxInputIdx = nextAudioInputIdx++;
-      audioInputs += ` -i "${tempSfxPath.replace(/\\/g, '/')}"`;
+      audioInputArgs.push('-i', tempSfxPath);
     }
 
     const fadeOutStart = Math.max(0, actualDuration - 1.5).toFixed(2);
@@ -4238,7 +4242,8 @@ async function executeRenderPipeline(
       filterChains.push(
         `[${bgmInputIdx}:a]volume=${bgmVolume.toFixed(2)}[bgm_base]`,
         `[bgm_base][${voiceInputIdx}:a]sidechaincompress=threshold=0.07:ratio=7:attack=80:release=350[ducked_bgm]`,
-        `[${voiceInputIdx}:a][ducked_bgm]amix=inputs=2:duration=first:dropout_transition=2${audioFadeFilter}[aout]`
+        // normalize=0: 기본값은 입력마다 소리를 절반으로 줄여, 효과음을 끄면 내레이션만 약 6dB 작아졌다.
+        `[${voiceInputIdx}:a][ducked_bgm]amix=inputs=2:duration=first:dropout_transition=2:normalize=0${audioFadeFilter}[aout]`
       );
     } else if (hasSfx) {
       filterChains.push(
@@ -4251,15 +4256,16 @@ async function executeRenderPipeline(
     }
 
     const filterComplex = filterChains.join(';');
-    const audioMap = (hasBgm || hasSfx) ? '-map "[aout]"' : `-map ${voiceInputIdx}:a`;
+    const audioMapArgs = (hasBgm || hasSfx) ? ['-map', '[aout]'] : ['-map', `${voiceInputIdx}:a`];
 
     const { encoder, extraArgs } = await getAvailableH264Encoder();
-    const encoderFlags = `${encoder ? `-c:v ${encoder}` : '-c:v libx264'} ${extraArgs || ''}`.trim();
+    const encoderArgs = ['-c:v', encoder || 'libx264', ...(extraArgs || '').split(/\s+/).filter(Boolean)];
+    const outputArgs = [...encoderArgs, '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k', '-shortest', safeTempVideoPath];
 
-    const ffmpegCmd = `ffmpeg -y ${inputArgs} ${audioInputs} -filter_complex "${filterComplex}" -map "[v]" ${audioMap} ${encoderFlags} -pix_fmt yuv420p -c:a aac -b:a 192k -shortest "${safeTempVideoPath.replace(/\\/g, '/')}"`;
-
+    // 셸을 거치지 않고 인자 배열로 실행한다. 파일 이름의 $, `, " 등이 명령으로 해석되지 않는다.
+    // cwd=scenesTempDir: subtitles 필터는 상대 경로(subs.ass)로 넘겨야 Windows 경로 이스케이프 문제가 없다.
     try {
-      await execAsync(ffmpegCmd, { cwd: scenesTempDir });
+      await runFfTool('ffmpeg', ['-y', ...sceneInputArgs, ...audioInputArgs, '-filter_complex', filterComplex, '-map', '[v]', ...audioMapArgs, ...outputArgs], scenesTempDir);
       if (fs.existsSync(safeTempVideoPath) && fs.statSync(safeTempVideoPath).size > 0) {
         fs.copyFileSync(safeTempVideoPath, videoFilePath);
       } else {
@@ -4267,19 +4273,20 @@ async function executeRenderPipeline(
       }
     } catch (ffErr: any) {
       console.warn('[FFmpeg Multi-scene fallback to direct visual render]:', ffErr?.message || ffErr);
+      isDegradedRender = true;
+      // 대체 영상: 첫 장면 하나만 영상 길이만큼 보여 준다 (배경음악·효과음 없음).
+      const firstMedia = sceneMediaList[0];
+      const fallbackInputArgs = [
+        ...(firstMedia?.type === 'video' ? ['-stream_loop', '-1'] : ['-loop', '1']),
+        '-t', String(actualDuration), '-i', firstMedia?.path || '',
+        '-i', safeTempAudioPath,
+      ];
+      const baseVf = 'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1';
       try {
-        const firstMedia = sceneMediaList[0];
-        const loopFlag = firstMedia?.type === 'video' ? '-stream_loop -1' : '-loop 1';
-        const fallbackPath = (firstMedia?.path || '').replace(/\\/g, '/');
-        const fallbackCmd = `ffmpeg -y ${loopFlag} -t ${actualDuration} -i "${fallbackPath}" -i "${safeTempAudioPath.replace(/\\/g, '/')}" -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,subtitles=${relativeAssName},format=yuv420p" ${encoderFlags} -pix_fmt yuv420p -c:a aac -b:a 192k -shortest "${safeTempVideoPath.replace(/\\/g, '/')}"`;
-        await execAsync(fallbackCmd, { cwd: scenesTempDir });
+        await runFfTool('ffmpeg', ['-y', ...fallbackInputArgs, '-vf', `${baseVf},subtitles=${relativeAssName},format=yuv420p`, ...outputArgs], scenesTempDir);
       } catch (subErr) {
         console.warn('[FFmpeg fallback without subtitles]:', subErr);
-        const firstMedia = sceneMediaList[0];
-        const loopFlag = firstMedia?.type === 'video' ? '-stream_loop -1' : '-loop 1';
-        const fallbackPath = (firstMedia?.path || '').replace(/\\/g, '/');
-        const noSubCmd = `ffmpeg -y ${loopFlag} -t ${actualDuration} -i "${fallbackPath}" -i "${safeTempAudioPath.replace(/\\/g, '/')}" -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,format=yuv420p" ${encoderFlags} -pix_fmt yuv420p -c:a aac -b:a 192k -shortest "${safeTempVideoPath.replace(/\\/g, '/')}"`;
-        await execAsync(noSubCmd, { cwd: scenesTempDir });
+        await runFfTool('ffmpeg', ['-y', ...fallbackInputArgs, '-vf', `${baseVf},format=yuv420p`, ...outputArgs], scenesTempDir);
       }
 
       if (fs.existsSync(safeTempVideoPath) && fs.statSync(safeTempVideoPath).size > 0) {
@@ -4300,14 +4307,13 @@ async function executeRenderPipeline(
     // Extract high-resolution title-aligned thumbnail from 0.5s of the rendered video
     const thumbnailFilePath = path.join(outputDir, `${id}_thumbnail.jpg`);
     try {
-      await execAsync(
-        `ffmpeg -y -ss 00:00:00.500 -i "${videoFilePath.replace(/\\/g, '/')}" -vframes 1 -q:v 2 "${thumbnailFilePath.replace(/\\/g, '/')}"`
-      );
+      await runFfTool('ffmpeg', ['-y', '-ss', '00:00:00.500', '-i', videoFilePath, '-vframes', '1', '-q:v', '2', thumbnailFilePath]);
     } catch (thumbErr) {
       console.warn('[Thumbnail Extraction Warning]:', thumbErr);
     }
 
-    sendProgress('done', 100, '쇼츠 비디오 생성이 완료되었습니다!');
+    const DEGRADED_MSG = '⚠️ 장면 합성에 실패해 첫 장면 한 장만 쓴 대체 영상입니다 (배경음악·효과음 없음). 자동 업로드하지 않았습니다.';
+    sendProgress('done', 100, isDegradedRender ? DEGRADED_MSG : '쇼츠 비디오 생성이 완료되었습니다!');
 
     const hasThumbnail = fs.existsSync(thumbnailFilePath);
     const projects = getStoredProjects();
@@ -4317,7 +4323,7 @@ async function executeRenderPipeline(
           ...p,
           status: 'done' as const,
           progressPercent: 100,
-          statusMessage: '렌더링 완료',
+          statusMessage: isDegradedRender ? DEGRADED_MSG : '렌더링 완료',
           videoPath: videoFilePath,
           videoUrl: `file://${videoFilePath}`,
           thumbnailPath: hasThumbnail ? thumbnailFilePath : undefined,
@@ -4331,6 +4337,7 @@ async function executeRenderPipeline(
 
     return {
       success: true,
+      degraded: isDegradedRender,
       videoPath: videoFilePath,
       audioPath: audioFilePath,
       thumbnailPath: hasThumbnail ? thumbnailFilePath : undefined,
@@ -7072,7 +7079,11 @@ async function executeAutoPilotJob(forceNow = false): Promise<{ success: boolean
     // 3. YouTube Auto-Upload & Auto-Comment
     if (config.autoUploadYoutube) {
       throwIfAutoPilotCancelled('유튜브 업로드');
-      if (!settings.youtubeClientId || !settings.youtubeRefreshToken) {
+      if (renderRes.degraded) {
+        // 장면 합성이 실패한 대체 영상(첫 장면 한 장)은 공개하지 않는다.
+        uploadStatus = 'failed';
+        uploadErrorMsg = '장면 합성에 실패해 대체 영상만 만들어졌으므로 업로드하지 않았습니다.';
+      } else if (!settings.youtubeClientId || !settings.youtubeRefreshToken) {
         uploadStatus = 'failed';
         uploadErrorMsg = '유튜브 연동 정보(Client ID 또는 Refresh Token)가 누락되어 업로드를 진행할 수 없습니다.';
       } else {
