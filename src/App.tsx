@@ -26,8 +26,6 @@ const PresetsManagementPage = lazy(() => import('./components/PresetsManagementP
 const ThumbnailABEditor = lazy(() => import('./components/ThumbnailABEditor').then((m) => ({ default: m.ThumbnailABEditor })));
 
 const VideoPlayerModal = lazy(() => import('./components/VideoPlayerModal').then((m) => ({ default: m.VideoPlayerModal })));
-const ProjectHistoryModal = lazy(() => import('./components/ProjectHistoryModal').then((m) => ({ default: m.ProjectHistoryModal })));
-const SettingsModal = lazy(() => import('./components/SettingsModal').then((m) => ({ default: m.SettingsModal })));
 const UpdateModal = lazy(() => import('./components/UpdateModal').then((m) => ({ default: m.UpdateModal })));
 const BatchGeneratorModal = lazy(() => import('./components/BatchGeneratorModal').then((m) => ({ default: m.BatchGeneratorModal })));
 const LongToShortsModal = lazy(() => import('./components/LongToShortsModal').then((m) => ({ default: m.LongToShortsModal })));
@@ -155,8 +153,6 @@ export default function App() {
   });
 
   const [currentProject, setCurrentProject] = useState<ShortsProject | null>(null);
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
   const [isLongToShortsModalOpen, setIsLongToShortsModalOpen] = useState(false);
@@ -1081,33 +1077,6 @@ export default function App() {
             onClose={() => setIsVideoModalOpen(false)}
             onShowInFolder={handleShowInFolder}
             onOpenVideoFile={handleOpenVideoFile}
-          />
-        )}
-
-        {/* History Modal */}
-        {isHistoryOpen && (
-          <ProjectHistoryModal
-            isOpen={isHistoryOpen}
-            onClose={() => setIsHistoryOpen(false)}
-            projects={projects}
-            onSelectProject={(p) => {
-              setCurrentProject(p);
-              setIsVideoModalOpen(true);
-            }}
-            onDeleteProject={handleDeleteProject}
-            onShowInFolder={handleShowInFolder}
-          />
-        )}
-
-        {/* Settings Modal */}
-        {isSettingsOpen && (
-          <SettingsModal
-            isOpen={isSettingsOpen}
-            onClose={() => setIsSettingsOpen(false)}
-            settings={settings}
-            onSaveSettings={handleSaveSettings}
-            onSelectOutputDirectory={handleSelectOutputDirectory}
-            onNavigateToPublish={() => setCurrentTab('publish')}
           />
         )}
 

@@ -3573,25 +3573,6 @@ function getRecommendedBgmMood(topicOrPrompt: string, channelNiche?: string): st
   return 'bgm_upbeat.mp3';
 }
 
-ipcMain.handle('get-recommended-bgm', async (_, topic: string, channelNiche?: string) => {
-  const file = getRecommendedBgmMood(topic, channelNiche);
-  const trackId = file.replace('.mp3', '');
-  const trackInfoMap: Record<string, { name: string; reason: string }> = {
-    bgm_suspense: { name: '🌑 미스터리 & 긴장감 (Suspense)', reason: '충격 반전 및 미스터리 분위기에 최적화' },
-    bgm_epic: { name: '⚔️ 웅장한 시네마틱 (Epic)', reason: '부자/역사/천재 마케팅의 웅장한 스케일에 최적화' },
-    bgm_tech: { name: '⚡ 모던 테크 & 지식 (Tech)', reason: '뇌과학, 심리, 스마트 지식 콘텐츠에 최적화' },
-    bgm_lofi: { name: '☕ 감성 힐링 & 로파이 (Lofi)', reason: '편안한 건강/힐링/감성 콘텐츠에 최적화' },
-    bgm_upbeat: { name: '☀️ 밝고 경쾌한 팝 (Upbeat)', reason: '생활 꿀팁 및 스마트 치트키에 최적화' },
-  };
-  const info = trackInfoMap[trackId] || trackInfoMap.bgm_upbeat;
-  return {
-    filename: file,
-    trackId,
-    name: info.name,
-    reason: info.reason,
-  };
-});
-
 // ultrafast + fastdecode는 디블로킹까지 끈다. 같은 장면 비교(SSIM): ultrafast 0.985 / 4.5MB, veryfast CRF 18 0.990 / 1.2MB.
 const LIBX264_ARGS = '-preset veryfast -crf 18 -threads 0';
 // 맥 하드웨어 인코더. 화질을 비트레이트로 정하므로 세로 1080p 쇼츠 권장치(8Mbps+)보다 넉넉히 준다.
@@ -4915,17 +4896,6 @@ ipcMain.handle('open-video-file', async (_, filePath: string) => {
   return false;
 });
 
-ipcMain.handle('open-file-location', async (_, filePath: string) => {
-  if (filePath) {
-    const cleanPath = path.resolve(filePath);
-    if (fs.existsSync(cleanPath)) {
-      shell.showItemInFolder(cleanPath);
-      return true;
-    }
-  }
-  return false;
-});
-
 // ----------------------------------------------------
 // One-Click App Update & Auto-Sync System (Git Pull & Rebuild & Live Reload)
 // ----------------------------------------------------
@@ -4967,11 +4937,6 @@ try {
   appBootCommit = execSync('git rev-parse --short HEAD', { cwd: APP_ROOT_DIR, encoding: 'utf8' }).trim();
 } catch {}
 
-let currentRunningVersion = APP_BOOT_VERSION;
-
-ipcMain.handle('get-app-version', () => {
-  return APP_BOOT_VERSION || currentRunningVersion || getPackageVersion();
-});
 
 // ---- 업데이트 설치 파일 무결성/출처 검증 헬퍼 ----
 const UPDATE_ALLOWED_HOST_SUFFIXES = ['github.com', 'githubusercontent.com'];
@@ -5392,12 +5357,6 @@ ipcMain.handle('perform-update', async (event, params?: { downloadUrl?: string; 
       }
     }
 
-    // Read package.json to sync currentRunningVersion
-    try {
-      const pkgJson = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8'));
-      if (pkgJson.version) currentRunningVersion = pkgJson.version;
-    } catch {}
-
     sendUpdateStatus('업데이트 완료! 최신 백엔드 엔진 적용을 위해 앱을 자동 재시작합니다...');
 
     setTimeout(() => {
@@ -5744,111 +5703,6 @@ ipcMain.handle('get-youtube-live-stats', async () => {
     return { success: false, error: err?.message || String(err) };
   }
 });
-
-// Instagram Reels Upload Handler (Meta Graph API)
-ipcMain.handle('upload-to-instagram', async (_, params: { videoPath: string; caption: string }) => {
-  const settings = getStoredSettings();
-  const { instagramAccessToken, instagramAccountId } = settings;
-
-  if (!instagramAccessToken || !instagramAccountId) {
-    return { success: false, error: '인스타그램 Access Token 및 Account ID가 설정되어 있지 않습니다.' };
-  }
-
-  if (!params.videoPath || !fs.existsSync(params.videoPath)) {
-    return { success: false, error: '업로드할 영상 파일이 존재하지 않습니다.' };
-  }
-
-  try {
-    const videoSize = fs.statSync(params.videoPath).size;
-
-    // 1. Resumable Upload Session Init
-    const initRes = await fetch(`https://graph.facebook.com/v19.0/${instagramAccountId.trim()}/media`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        media_type: 'REELS',
-        upload_type: 'resumable',
-        caption: params.caption || '',
-        access_token: instagramAccessToken.trim(),
-      }),
-    });
-
-    if (!initRes.ok) {
-      const err = await initRes.json().catch(() => ({}));
-      return { success: false, error: err.error?.message || `인스타그램 업로드 세션 생성 실패 (${initRes.status})` };
-    }
-
-    const initData: any = await initRes.json();
-    const containerId = initData.id;
-    const uploadUri = initData.uri;
-
-    if (!uploadUri) {
-      return { success: false, error: '인스타그램 업로드 URI를 획득하지 못했습니다.' };
-    }
-
-    // 2. Upload Video Binary
-    const videoBuffer = fs.readFileSync(params.videoPath);
-    const uploadRes = await fetch(uploadUri, {
-      method: 'POST',
-      headers: {
-        Authorization: `OAuth ${instagramAccessToken.trim()}`,
-        offset: '0',
-        file_size: videoSize.toString(),
-      },
-      body: videoBuffer,
-    });
-
-    if (!uploadRes.ok) {
-      const uErr = await uploadRes.text();
-      return { success: false, error: `인스타그램 비디오 전송 실패: ${uErr.slice(0, 150)}` };
-    }
-
-    // 3. Poll Container Status until READY (up to 45s)
-    let isReady = false;
-    for (let i = 0; i < 9; i++) {
-      await new Promise((r) => setTimeout(r, 5000));
-      const statusRes = await fetch(`https://graph.facebook.com/v19.0/${containerId}?fields=status_code&access_token=${instagramAccessToken.trim()}`);
-      if (statusRes.ok) {
-        const statusData: any = await statusRes.json();
-        if (statusData.status_code === 'FINISHED') {
-          isReady = true;
-          break;
-        } else if (statusData.status_code === 'ERROR') {
-          return { success: false, error: '인스타그램 미디어 처리 중 오류가 발생했습니다.' };
-        }
-      }
-    }
-
-    if (!isReady) {
-      return { success: false, error: '인스타그램 비디오 인코딩 대기 시간이 초과되었습니다.' };
-    }
-
-    // 4. Publish Media
-    const publishRes = await fetch(`https://graph.facebook.com/v19.0/${instagramAccountId.trim()}/media_publish`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        creation_id: containerId,
-        access_token: instagramAccessToken.trim(),
-      }),
-    });
-
-    if (!publishRes.ok) {
-      const pErr = await publishRes.json().catch(() => ({}));
-      return { success: false, error: pErr.error?.message || `인스타그램 릴스 게시 실패 (${publishRes.status})` };
-    }
-
-    const pubData: any = await publishRes.json();
-    return {
-      success: true,
-      mediaId: pubData.id,
-      message: '인스타그램 릴스 자동 업로드에 성공했습니다!',
-    };
-  } catch (err: any) {
-    return { success: false, error: err?.message || String(err) };
-  }
-});
-
 
 ipcMain.handle('test-instagram-connection', async (_, { accountId, accessToken }) => {
   if (!accountId || !accessToken) {
@@ -6303,14 +6157,6 @@ ipcMain.handle('export-multilingual-bundle', async (_, { projectId, videoPath, o
   } catch (err: any) {
     return { success: false, error: err.message };
   }
-});
-
-ipcMain.handle('open-external-url', async (_, url: string) => {
-  if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
-    await shell.openExternal(url);
-    return true;
-  }
-  return false;
 });
 
 // ----------------------------------------------------
@@ -7283,18 +7129,6 @@ ipcMain.handle('stop-autopilot', async () => {
 
 ipcMain.handle('trigger-autopilot-now', async () => {
   return await executeAutoPilotJob(true);
-});
-
-// ----------------------------------------------------
-// 1. Broadcast SFX Preview Handler
-// ----------------------------------------------------
-ipcMain.handle('preview-sfx', async (_, sfxId: string) => {
-  const safeId = String(sfxId || '').replace(/[^a-zA-Z0-9_-]/g, '');
-  const sfxPath = getSfxFilePath(`${safeId}.mp3`);
-  if (sfxPath && fs.existsSync(sfxPath)) {
-    return `file://${sfxPath}`;
-  }
-  return null;
 });
 
 // ----------------------------------------------------

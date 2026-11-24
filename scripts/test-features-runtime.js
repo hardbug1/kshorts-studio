@@ -221,7 +221,6 @@ expectedSfxFiles.forEach((file) => {
 });
 
 assert(mainCjs.includes('buildSfxTrack'), 'main.cjs 번들에 buildSfxTrack 함수 탑재 확인');
-assert(mainCjs.includes('preview-sfx'), 'main.cjs 번들에 preview-sfx IPC 채널 탑재 확인');
 
 // ----------------------------------------------------
 // Test 7: Batch Bulk Generator Configuration & Queuing Test
@@ -595,7 +594,6 @@ console.log('\n--- [테스트 22] 1순위: Pexels/Pixabay 연결 테스트, 키�
 const mainTsSource = fs.readFileSync(path.join(__dirname, '..', 'electron', 'main.ts'), 'utf8');
 const preloadSource = fs.readFileSync(path.join(__dirname, '..', 'electron', 'preload.ts'), 'utf8');
 const aiSettingsSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'components', 'AISettingsPage.tsx'), 'utf8');
-const settingsModalSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'components', 'SettingsModal.tsx'), 'utf8');
 const tmplSelectorSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'components', 'TemplateSelector.tsx'), 'utf8');
 
 assert(mainTsSource.includes('test-pexels-connection'), 'main.ts에 test-pexels-connection IPC 채널 탑재 확인');
@@ -606,8 +604,6 @@ assert(preloadSource.includes('testPexelsConnection'), 'preload.ts에 testPexels
 assert(preloadSource.includes('testPixabayConnection'), 'preload.ts에 testPixabayConnection 노출 확인');
 assert(aiSettingsSource.includes('handleTestPexels'), 'AISettingsPage.tsx에 Pexels 연결 테스트 버튼 탑재 확인');
 assert(aiSettingsSource.includes('handleTestPixabay'), 'AISettingsPage.tsx에 Pixabay 연결 테스트 버튼 탑재 확인');
-assert(settingsModalSource.includes('handleTestPexels'), 'SettingsModal.tsx에 Pexels 연결 테스트 버튼 탑재 확인');
-assert(settingsModalSource.includes('handleTestPixabay'), 'SettingsModal.tsx에 Pixabay 연결 테스트 버튼 탑재 확인');
 assert(tmplSelectorSource.includes('비디오 모드 ON'), 'TemplateSelector.tsx에 무료 비디오 모드 배지 가이드 탑재 확인');
 assert(tmplSelectorSource.includes('Pexels API 키가 등록되지 않았습니다'), 'TemplateSelector.tsx에 Pexels 키 미등록 시 친절한 안내 가이드 탑재 확인');
 assert(mainTsSource.includes('아침루틴') && mainTsSource.includes('번아웃') && mainTsSource.includes('인간관계'), 'translateKoreanVisualKeywords에 쇼츠 빈출 키워드(루틴, 번아웃, 대화법 등) 대폭 확충 확인');
@@ -637,7 +633,6 @@ assert(mainTsSource.includes('params.enableStockVideo || settings.imageEngine ==
 assert(mainTsSource.includes('User-Agent') && mainTsSource.includes('video/webm'), 'downloadVideoToTemp에 브라우저 User-Agent 및 비디오 헤더 탑재 확인');
 assert(mainTsSource.includes('height > f.width') && mainTsSource.includes('width >= 720'), 'Pexels 비디오 해상도 우선순위(9:16 HD) 탐색 로직 확인');
 assert(aiSettingsSource.includes('Pexels 실사 미디어 (비디오 & 사진)'), 'AISettingsPage.tsx에 비디오&사진 명확한 안내 라벨 확인');
-assert(settingsModalSource.includes('Pexels 실사 미디어 (비디오 & 사진)'), 'SettingsModal.tsx에 비디오&사진 명확한 안내 라벨 확인');
 
 console.log('\n--- [테스트 26] 주제 다양성 풀 확장 & 다채로운 스토리텔링 대본 포맷 검증 ---');
 const promptSectionSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'components', 'PromptSection.tsx'), 'utf8');
@@ -651,8 +646,6 @@ assert(mainTsSource.includes('흑역사') && mainTsSource.includes('변기 물')
 
 console.log('\n--- [테스트 27] 2순위: 카테고리별 BGM 자동 추천 & get-recommended-bgm IPC 검증 ---');
 const bgmSelectorSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'components', 'BgmSelector.tsx'), 'utf8');
-assert(mainTsSource.includes('get-recommended-bgm'), 'main.ts에 get-recommended-bgm IPC 채널 등록 확인');
-assert(preloadSource.includes('getRecommendedBgm'), 'preload.ts에 getRecommendedBgm API 노출 확인');
 assert(mainTsSource.includes('bgm_suspense') && mainTsSource.includes('bgm_tech') && mainTsSource.includes('bgm_epic'), 'getRecommendedBgmMood에 5대 카테고리 BGM 자동 매핑 확인');
 assert(bgmSelectorSource.includes('detectedMood') && bgmSelectorSource.includes('자동 선곡 예정:'), 'BgmSelector.tsx에 실시간 추천 BGM 감지 및 안내 뱃지 탑재 확인');
 assert(appSource.includes('currentTopic={prompt}'), 'App.tsx에서 BgmSelector로 현재 주제(currentTopic) 전달 확인');

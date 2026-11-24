@@ -50,8 +50,6 @@ export const electronAPI = {
   checkNetworkStatus: (): Promise<{ online: boolean }> => ipcRenderer.invoke('check-network-status'),
 
   // One-Click App Update & Sync
-  getAppVersion: (): Promise<string> =>
-    ipcRenderer.invoke('get-app-version'),
   checkUpdate: (): Promise<import('../src/types').UpdateCheckResult> =>
     ipcRenderer.invoke('check-update'),
   performUpdate: (params?: { downloadUrl?: string; latestVersion?: string; sha256?: string }): Promise<{ success: boolean; message?: string; error?: string }> =>
@@ -94,14 +92,6 @@ export const electronAPI = {
     ipcRenderer.invoke('analyze-youtube-performance'),
   getYoutubeLiveStats: (): Promise<{ success: boolean; data?: import('../src/types').YouTubeLiveStats; error?: string }> =>
     ipcRenderer.invoke('get-youtube-live-stats'),
-  uploadToInstagram: (params: { videoPath: string; caption: string }): Promise<{ success: boolean; mediaId?: string; message?: string; error?: string }> =>
-    ipcRenderer.invoke('upload-to-instagram', params),
-  openExternalUrl: (url: string): Promise<boolean> =>
-    ipcRenderer.invoke('open-external-url', url),
-
-  // 1. SFX Preview
-  previewSfx: (sfxId: string): Promise<string | null> =>
-    ipcRenderer.invoke('preview-sfx', sfxId),
 
   // 2. Excel/CSV Batch Bulk Generator
   startBatchJob: (config: import('../src/types').BatchJobConfig): Promise<{ success: boolean; totalItems?: number; error?: string }> =>
@@ -192,8 +182,6 @@ export const electronAPI = {
   },
 
   // Media Connections & Hardware Acceleration & Audio Intelligence
-  getRecommendedBgm: (topic: string, channelNiche?: string): Promise<{ filename: string; trackId: string; name: string; reason: string }> =>
-    ipcRenderer.invoke('get-recommended-bgm', topic, channelNiche),
   testPexelsConnection: (params?: { apiKey?: string }): Promise<{ success: boolean; message?: string; error?: string }> =>
     ipcRenderer.invoke('test-pexels-connection', params || {}),
   testPixabayConnection: (params?: { apiKey?: string }): Promise<{ success: boolean; message?: string; error?: string }> =>
