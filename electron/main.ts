@@ -80,6 +80,30 @@ if (!app.isPackaged) {
   try { fs.mkdirSync(path.join(APP_ROOT_DIR, 'kshorts-data'), { recursive: true }); } catch {}
 }
 
+/** 임시 파일에 쓴 뒤 이름을 바꿔 교체한다. 쓰는 도중 앱이 꺼져도 기존 파일이 반쯤 쓰인 채 남지 않는다. */
+function writeJsonAtomic(file: string, data: unknown): void {
+  const tmp = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8');
+  fs.renameSync(tmp, file);
+}
+
+/**
+ * JSON 저장소를 읽는다. 파일이 없으면 fallback.
+ * 깨진 파일은 빈 값으로 덮어쓰이기 전에 `.corrupt-<시각>`으로 옮겨 보존한다(예전엔 빈 목록으로 읽혀 다음 저장 때 전부 지워졌다).
+ */
+function readJsonStore<T>(file: string, fallback: T): T {
+  if (!fs.existsSync(file)) return fallback;
+  const raw = fs.readFileSync(file, 'utf8');
+  try {
+    return JSON.parse(raw) as T;
+  } catch (err) {
+    const backup = `${file}.corrupt-${Date.now()}`;
+    try { fs.renameSync(file, backup); } catch {}
+    console.error(`[Store] ${path.basename(file)} is corrupted and was moved to ${backup}:`, err);
+    return fallback;
+  }
+}
+
 interface UsedImageStore {
   hashes: string[];
   urls: string[];
@@ -88,16 +112,16 @@ interface UsedImageStore {
 
 function getStoredUsedImages(): UsedImageStore {
   try {
-    if (fs.existsSync(USED_IMAGES_FILE)) {
-      const data = JSON.parse(fs.readFileSync(USED_IMAGES_FILE, 'utf8'));
-      return {
-        hashes: Array.isArray(data.hashes) ? data.hashes : [],
-        urls: Array.isArray(data.urls) ? data.urls : [],
-        photoIds: Array.isArray(data.photoIds) ? data.photoIds : [],
-      };
-    }
-  } catch {}
-  return { hashes: [], urls: [], photoIds: [] };
+    const data = readJsonStore<any>(USED_IMAGES_FILE, {});
+    return {
+      hashes: Array.isArray(data?.hashes) ? data.hashes : [],
+      urls: Array.isArray(data?.urls) ? data.urls : [],
+      photoIds: Array.isArray(data?.photoIds) ? data.photoIds : [],
+    };
+  } catch (err) {
+    console.error('[Used Images Read Error]:', err);
+    return { hashes: [], urls: [], photoIds: [] };
+  }
 }
 
 function recordUsedImage(hash?: string, url?: string, photoId?: string): void {
@@ -120,7 +144,7 @@ function recordUsedImage(hash?: string, url?: string, photoId?: string): void {
       updated = true;
     }
     if (updated) {
-      fs.writeFileSync(USED_IMAGES_FILE, JSON.stringify(store, null, 2), 'utf8');
+      writeJsonAtomic(USED_IMAGES_FILE, store);
     }
   } catch (err) {
     console.warn('[Used Images Record Error]:', err);
@@ -129,32 +153,38 @@ function recordUsedImage(hash?: string, url?: string, photoId?: string): void {
 
 function getStoredProjects(): ShortsProject[] {
   try {
-    if (fs.existsSync(PROJECTS_FILE)) {
-      return JSON.parse(fs.readFileSync(PROJECTS_FILE, 'utf8'));
-    }
-  } catch {}
-  return [];
+    const data = readJsonStore<unknown>(PROJECTS_FILE, []);
+    return Array.isArray(data) ? (data as ShortsProject[]) : [];
+  } catch (err) {
+    console.error('[Projects Read Error]:', err);
+    return [];
+  }
 }
 
 function saveStoredProjects(projects: ShortsProject[]): void {
   try {
-    fs.writeFileSync(PROJECTS_FILE, JSON.stringify(projects, null, 2), 'utf8');
-  } catch {}
+    writeJsonAtomic(PROJECTS_FILE, projects);
+  } catch (err) {
+    console.error('[Projects Save Error]:', err);
+  }
 }
 
 function getStoredScheduledShorts(): ScheduledShortsItem[] {
   try {
-    if (fs.existsSync(SCHEDULED_SHORTS_FILE)) {
-      return JSON.parse(fs.readFileSync(SCHEDULED_SHORTS_FILE, 'utf8'));
-    }
-  } catch {}
-  return [];
+    const data = readJsonStore<unknown>(SCHEDULED_SHORTS_FILE, []);
+    return Array.isArray(data) ? (data as ScheduledShortsItem[]) : [];
+  } catch (err) {
+    console.error('[Scheduled Shorts Read Error]:', err);
+    return [];
+  }
 }
 
 function saveStoredScheduledShorts(items: ScheduledShortsItem[]): void {
   try {
-    fs.writeFileSync(SCHEDULED_SHORTS_FILE, JSON.stringify(items, null, 2), 'utf8');
-  } catch {}
+    writeJsonAtomic(SCHEDULED_SHORTS_FILE, items);
+  } catch (err) {
+    console.error('[Scheduled Shorts Save Error]:', err);
+  }
 }
 
 // ----------------------------------------------------
@@ -507,10 +537,11 @@ function decryptSettingSecrets(raw: Record<string, unknown>): AppSettings {
 
 function getStoredSettings(): AppSettings {
   try {
-    if (fs.existsSync(SETTINGS_FILE)) {
-      return decryptSettingSecrets(JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8')));
-    }
-  } catch {}
+    const raw = readJsonStore<Record<string, unknown> | null>(SETTINGS_FILE, null);
+    if (raw && typeof raw === 'object') return decryptSettingSecrets(raw);
+  } catch (err) {
+    console.error('[Settings Read Error]:', err);
+  }
   return {
     defaultVoiceId: 'ko-KR-SunHiNeural',
     defaultTemplateId: 'basic',
@@ -520,8 +551,10 @@ function getStoredSettings(): AppSettings {
 
 function saveStoredSettings(settings: AppSettings): void {
   try {
-    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(encryptSettingSecrets(settings), null, 2), 'utf8');
-  } catch {}
+    writeJsonAtomic(SETTINGS_FILE, encryptSettingSecrets(settings));
+  } catch (err) {
+    console.error('[Settings Save Error]:', err);
+  }
 }
 
 const DEFAULT_AUTOPILOT_CONFIG: AutoPilotSchedule = {
@@ -640,11 +673,11 @@ function calculateNextRunTime(config: AutoPilotSchedule, forceFuture: boolean = 
 
 function getStoredAutoPilotConfig(): AutoPilotSchedule {
   try {
-    if (fs.existsSync(AUTOPILOT_FILE)) {
-      const data = JSON.parse(fs.readFileSync(AUTOPILOT_FILE, 'utf8'));
-      return { ...DEFAULT_AUTOPILOT_CONFIG, ...data };
-    }
-  } catch {}
+    const data = readJsonStore<Partial<AutoPilotSchedule> | null>(AUTOPILOT_FILE, null);
+    if (data && typeof data === 'object') return { ...DEFAULT_AUTOPILOT_CONFIG, ...data };
+  } catch (err) {
+    console.error('[AutoPilot Config Read Error]:', err);
+  }
   return { ...DEFAULT_AUTOPILOT_CONFIG };
 }
 
@@ -674,7 +707,7 @@ function saveStoredAutoPilotConfig(newConfig: AutoPilotSchedule): AutoPilotSched
       }
     }
 
-    fs.writeFileSync(AUTOPILOT_FILE, JSON.stringify(newConfig, null, 2), 'utf8');
+    writeJsonAtomic(AUTOPILOT_FILE, newConfig);
   } catch (err) {
     console.warn('[saveStoredAutoPilotConfig Error]:', err);
   }
