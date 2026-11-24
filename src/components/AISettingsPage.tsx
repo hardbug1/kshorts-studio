@@ -27,7 +27,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({
     settings.imageEngine || 'pollinations'
   );
   const [subscriptionLlm, setSubscriptionLlm] = useState<'off' | 'claude' | 'codex'>(settings.subscriptionLlm || 'off');
-  const [gpuEncoder, setGpuEncoder] = useState<'auto' | 'nvenc' | 'qsv' | 'cpu'>(
+  const [gpuEncoder, setGpuEncoder] = useState<'auto' | 'nvenc' | 'qsv' | 'videotoolbox' | 'cpu'>(
     settings.gpuEncoder || 'auto'
   );
   const [outputDir, setOutputDir] = useState(settings.outputDirectory || '');
@@ -587,11 +587,12 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({
           </div>
         )}
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-1">
           {[
             { id: 'auto', label: '자동 감지 (권장)', sub: '최적 인코더 자동 선택' },
             { id: 'nvenc', label: 'NVIDIA GPU', sub: 'h264_nvenc 초고속' },
             { id: 'qsv', label: 'Intel QuickSync', sub: 'h264_qsv 하드웨어' },
+            { id: 'videotoolbox', label: 'Mac 하드웨어', sub: 'VideoToolbox · 발열·배터리 절약' },
             { id: 'cpu', label: 'CPU 전용', sub: 'libx264 고호환' },
           ].map((item) => {
             const isSelected = gpuEncoder === item.id;

@@ -3505,13 +3505,18 @@ ipcMain.handle('get-recommended-bgm', async (_, topic: string, channelNiche?: st
   };
 });
 
+// ultrafast + fastdecode는 디블로킹까지 끈다. 같은 장면 비교(SSIM): ultrafast 0.985 / 4.5MB, veryfast CRF 18 0.990 / 1.2MB.
+const LIBX264_ARGS = '-preset veryfast -crf 18 -threads 0';
+// 맥 하드웨어 인코더. 화질을 비트레이트로 정하므로 세로 1080p 쇼츠 권장치(8Mbps+)보다 넉넉히 준다.
+const VIDEOTOOLBOX_ARGS = '-b:v 10M -maxrate 12M -bufsize 20M';
+
 let cachedH264Encoder: { encoder: string; extraArgs: string } | null = null;
 async function getAvailableH264Encoder(preferredEncoder?: string): Promise<{ encoder: string; extraArgs: string }> {
   const settings = getStoredSettings();
   const pref = preferredEncoder || settings.gpuEncoder || 'auto';
 
   if (pref === 'cpu') {
-    return { encoder: 'libx264', extraArgs: '-preset ultrafast -tune fastdecode -threads 0' };
+    return { encoder: 'libx264', extraArgs: LIBX264_ARGS };
   }
 
   if (cachedH264Encoder && pref === 'auto') return cachedH264Encoder;
@@ -3520,7 +3525,7 @@ async function getAvailableH264Encoder(preferredEncoder?: string): Promise<{ enc
     { encoder: 'h264_nvenc', extraArgs: '-preset p1 -tune ll' }, // NVIDIA GPU Hardware Accel
     { encoder: 'h264_qsv', extraArgs: '-preset veryfast' }, // Intel QuickSync Hardware Accel
     { encoder: 'h264_amf', extraArgs: '-usage lowlatency' }, // AMD AMF Hardware Accel
-    { encoder: 'libx264', extraArgs: '-preset ultrafast -tune fastdecode -threads 0' }, // Multithreaded CPU
+    { encoder: 'libx264', extraArgs: LIBX264_ARGS }, // Multithreaded CPU
     { encoder: 'libopenh264', extraArgs: '-b:v 4000k' },
     { encoder: 'mpeg4', extraArgs: '-q:v 3' },
   ];
@@ -3528,12 +3533,17 @@ async function getAvailableH264Encoder(preferredEncoder?: string): Promise<{ enc
   if (pref === 'nvenc') {
     candidateEncoders = [
       { encoder: 'h264_nvenc', extraArgs: '-preset p1 -tune ll' },
-      { encoder: 'libx264', extraArgs: '-preset ultrafast -tune fastdecode -threads 0' },
+      { encoder: 'libx264', extraArgs: LIBX264_ARGS },
     ];
   } else if (pref === 'qsv') {
     candidateEncoders = [
       { encoder: 'h264_qsv', extraArgs: '-preset veryfast' },
-      { encoder: 'libx264', extraArgs: '-preset ultrafast -tune fastdecode -threads 0' },
+      { encoder: 'libx264', extraArgs: LIBX264_ARGS },
+    ];
+  } else if (pref === 'videotoolbox') {
+    candidateEncoders = [
+      { encoder: 'h264_videotoolbox', extraArgs: VIDEOTOOLBOX_ARGS },
+      { encoder: 'libx264', extraArgs: LIBX264_ARGS },
     ];
   }
 
@@ -3559,7 +3569,7 @@ async function getAvailableH264Encoder(preferredEncoder?: string): Promise<{ enc
   }
 
   // Safe fallback
-  const cpuFallback = { encoder: 'libx264', extraArgs: '-preset ultrafast -tune fastdecode -threads 0' };
+  const cpuFallback = { encoder: 'libx264', extraArgs: LIBX264_ARGS };
   if (pref === 'auto') cachedH264Encoder = cpuFallback;
   return cpuFallback;
 }
@@ -4070,34 +4080,35 @@ async function executeRenderPipeline(
 
     const fps = 25;
     const sceneDurNum = parseFloat(sceneDuration);
-    const sceneFrames = Math.max(25, Math.round(sceneDurNum * fps));
+    const transitionType = params.transitionType || settings.transitionType || 'fade';
+    // 'fade'는 장면끼리 0.3초 겹쳐 바꾼다. (예전에는 장면마다 검은 화면으로 꺼졌다 켜져 영상 내내 깜빡였다)
+    // 겹치는 만큼 마지막 장면을 뺀 각 장면을 XFADE_SEC 길게 만들어 전체 길이는 그대로 둔다.
+    const XFADE_SEC = 0.3;
+    const lastSceneIdx = sceneMediaList.length - 1;
+    const useCrossfade = transitionType === 'fade' && lastSceneIdx > 0 && sceneDurNum > 1;
+    const clipDur = (i: number) => (useCrossfade && i < lastSceneIdx ? sceneDurNum + XFADE_SEC : sceneDurNum);
 
-    const inputArgs = sceneMediaList.map((m) => {
+    const inputArgs = sceneMediaList.map((m, i) => {
       const safePath = m.path.replace(/\\/g, '/');
       if (m.type === 'video') {
-        return `-stream_loop -1 -t ${sceneDuration} -i "${safePath}"`;
+        return `-stream_loop -1 -t ${clipDur(i).toFixed(3)} -i "${safePath}"`;
       } else {
-        return `-loop 1 -t ${sceneDuration} -i "${safePath}"`;
+        // 이미지는 한 장만 넣고 zoompan이 장면 길이만큼 프레임을 만든다 (반복 입력이면 프레임마다 d개씩 만들어 버린다).
+        return `-i "${safePath}"`;
       }
     }).join(' ');
-
-    const transitionType = params.transitionType || settings.transitionType || 'fade';
-    let transFilter = '';
-    if (transitionType === 'fade' && sceneDurNum > 0.8) {
-      const fadeInDur = Math.min(0.25, sceneDurNum * 0.2);
-      const fadeOutStart = Math.max(0, sceneDurNum - 0.25);
-      transFilter = `,fade=t=in:st=0:d=${fadeInDur.toFixed(2)},fade=t=out:st=${fadeOutStart.toFixed(2)}:d=${fadeInDur.toFixed(2)}`;
-    }
 
     const filterChains: string[] = [];
     for (let i = 0; i < sceneMediaList.length; i++) {
       const media = sceneMediaList[i];
+      const dur = clipDur(i).toFixed(3);
       if (media.type === 'video') {
         // Video clip: 9:16 vertical smart scale & center crop for smooth full-screen shorts
         filterChains.push(
-          `[${i}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,fps=${fps}${transFilter},trim=duration=${sceneDuration},setpts=PTS-STARTPTS[v${i}]`
+          `[${i}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,fps=${fps},trim=duration=${dur},setpts=PTS-STARTPTS,format=yuv420p[v${i}]`
         );
       } else {
+        const sceneFrames = Math.max(25, Math.round(clipDur(i) * fps));
         // 4-Way Dynamic Ken Burns Camera Motion (Zoom In, Pan Left, Zoom Out, Pan Right)
         const motionMode = i % 4;
         let zoomExpr = `min(zoom+0.0007,1.18)`;
@@ -4125,13 +4136,23 @@ async function executeRenderPipeline(
           yExpr = `ih/2-(ih/zoom/2)`;
         }
 
+        // zoompan은 위치를 정수 픽셀로 반올림해 1080 해상도에서 직접 움직이면 화면이 떨린다 → 2배로 키워서 움직이고 1080으로 출력.
         filterChains.push(
-          `[${i}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,zoompan=z='${zoomExpr}':d=${sceneFrames}:x='${xExpr}':y='${yExpr}':s=1080x1920:fps=${fps}${transFilter},trim=duration=${sceneDuration},setpts=PTS-STARTPTS[v${i}]`
+          `[${i}:v]scale=2160:3840:force_original_aspect_ratio=increase,crop=2160:3840,setsar=1,zoompan=z='${zoomExpr}':d=${sceneFrames}:x='${xExpr}':y='${yExpr}':s=1080x1920:fps=${fps},trim=duration=${dur},setpts=PTS-STARTPTS,format=yuv420p[v${i}]`
         );
       }
     }
-    const concatInputs = sceneMediaList.map((_, i) => `[v${i}]`).join('');
-    filterChains.push(`${concatInputs}concat=n=${sceneMediaList.length}:v=1:a=0[vbg]`);
+    if (useCrossfade) {
+      let prev = 'v0';
+      for (let i = 1; i <= lastSceneIdx; i++) {
+        const out = i === lastSceneIdx ? 'vbg' : `xf${i}`;
+        filterChains.push(`[${prev}][v${i}]xfade=transition=fade:duration=${XFADE_SEC}:offset=${(i * sceneDurNum).toFixed(3)}[${out}]`);
+        prev = out;
+      }
+    } else {
+      const concatInputs = sceneMediaList.map((_, i) => `[v${i}]`).join('');
+      filterChains.push(`${concatInputs}concat=n=${sceneMediaList.length}:v=1:a=0[vbg]`);
+    }
     
     // In Windows FFmpeg, libass subtitles filter fails on 'C:/...' unless double-escaped or referenced from scenesTempDir
     const tempAssLocalPath = path.join(scenesTempDir, 'subs.ass');
@@ -5935,6 +5956,10 @@ ipcMain.handle('check-gpu-acceleration', async () => {
       typeName = 'AMD AMF 하드웨어 가속';
       badge = 'AMD GPU';
       isHardware = true;
+    } else if (detected.encoder.includes('videotoolbox')) {
+      typeName = 'Apple VideoToolbox 하드웨어 가속';
+      badge = 'Apple GPU';
+      isHardware = true;
     }
 
     return {
@@ -5952,7 +5977,7 @@ ipcMain.handle('check-gpu-acceleration', async () => {
     return {
       success: false,
       encoder: 'libx264',
-      extraArgs: '-preset ultrafast -tune fastdecode -threads 0',
+      extraArgs: LIBX264_ARGS,
       typeName: 'CPU (libx264)',
       badge: 'CPU',
       isHardware: false,

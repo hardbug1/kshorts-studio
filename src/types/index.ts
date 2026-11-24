@@ -166,7 +166,7 @@ export interface AppSettings {
   affiliateLinks?: AffiliateLinkItem[];
   affiliateDisclaimer?: string;
   // GPU Acceleration & Video Transitions
-  gpuEncoder?: 'auto' | 'nvenc' | 'qsv' | 'cpu';
+  gpuEncoder?: 'auto' | 'nvenc' | 'qsv' | 'videotoolbox' | 'cpu';
   highlightKeywords?: boolean;
   transitionType?: 'cut' | 'fade' | 'zoom';
   // Auto-Update & Distribution
