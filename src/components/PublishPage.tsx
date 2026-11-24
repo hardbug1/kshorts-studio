@@ -137,11 +137,7 @@ export const PublishPage: React.FC<PublishPageProps> = ({ settings, onSaveSettin
   const [isTestingTelegram, setIsTestingTelegram] = useState(false);
   const [telegramTestResult, setTelegramTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
-  const [isPublishingInsta, setIsPublishingInsta] = useState(false);
-  const [instaPublishResult, setInstaPublishResult] = useState<{ success: boolean; message: string } | null>(null);
 
-  const [isPublishingTiktok, setIsPublishingTiktok] = useState(false);
-  const [tiktokPublishResult, setTiktokPublishResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const [saved, setSaved] = useState(false);
 
@@ -382,61 +378,6 @@ export const PublishPage: React.FC<PublishPageProps> = ({ settings, onSaveSettin
       setTelegramTestResult({ success: false, message: `전송 에러: ${err?.message || err}` });
     } finally {
       setIsTestingTelegram(false);
-    }
-  };
-
-  // Direct Publish Instagram Reels
-  const handleDirectPublishInstagram = async () => {
-    if (!instagramAccountId || !instagramAccessToken) {
-      setInstaPublishResult({ success: false, message: 'Account ID와 Access Token을 먼저 입력해주세요.' });
-      return;
-    }
-    setIsPublishingInsta(true);
-    setInstaPublishResult(null);
-    try {
-      if (window.electronAPI?.publishToInstagram) {
-        const res = await window.electronAPI.publishToInstagram({
-          videoPath: 'sample_video.mp4',
-          caption: 'K-Shorts 자동 발행 테스트 릴스 #shorts #reels',
-          accountId: instagramAccountId.trim(),
-          accessToken: instagramAccessToken.trim(),
-        });
-        setInstaPublishResult({
-          success: res.success,
-          message: res.message || res.error || '발행 완료',
-        });
-      }
-    } catch (e: any) {
-      setInstaPublishResult({ success: false, message: `발행 에러: ${e.message}` });
-    } finally {
-      setIsPublishingInsta(false);
-    }
-  };
-
-  // Direct Publish TikTok
-  const handleDirectPublishTiktok = async () => {
-    if (!tiktokAccessToken) {
-      setTiktokPublishResult({ success: false, message: 'TikTok Access Token을 먼저 입력해주세요.' });
-      return;
-    }
-    setIsPublishingTiktok(true);
-    setTiktokPublishResult(null);
-    try {
-      if (window.electronAPI?.publishToTikTok) {
-        const res = await window.electronAPI.publishToTikTok({
-          videoPath: 'sample_video.mp4',
-          title: 'K-Shorts 자동 포스팅 테스트 쇼츠 #tiktok #viral',
-          accessToken: tiktokAccessToken.trim(),
-        });
-        setTiktokPublishResult({
-          success: res.success,
-          message: res.message || res.error || '게시 완료',
-        });
-      }
-    } catch (e: any) {
-      setTiktokPublishResult({ success: false, message: `게시 에러: ${e.message}` });
-    } finally {
-      setIsPublishingTiktok(false);
     }
   };
 
@@ -1293,47 +1234,6 @@ export const PublishPage: React.FC<PublishPageProps> = ({ settings, onSaveSettin
             </div>
           </div>
 
-          {/* Instagram Direct Publish Pipeline Card */}
-          <div className="bg-white border border-pink-200/90 rounded-2xl p-6 space-y-4 shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-pink-100 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-pink-500/10 text-pink-600 flex items-center justify-center font-bold">
-                  <UploadCloud className="w-4 h-4 text-pink-600" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-                    <span>인스타그램 릴스 직접 자동 게시 파이프라인</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-pink-100 text-pink-700 font-extrabold">
-                      Graph API Container Engine
-                    </span>
-                  </h3>
-                  <p className="text-xs text-slate-500 font-medium">
-                    Meta Graph API 컨테이너 생성 → 미디어 트랜스코딩 폴링 → 릴스 피드 자동 게시 전 과정을 자동으로 수행합니다.
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleDirectPublishInstagram}
-                disabled={isPublishingInsta || !instagramAccountId || !instagramAccessToken}
-                className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white text-xs font-bold shadow-md shadow-pink-500/20 disabled:opacity-40 transition-all shrink-0"
-              >
-                <UploadCloud className={`w-3.5 h-3.5 ${isPublishingInsta ? 'animate-bounce' : ''}`} />
-                <span>{isPublishingInsta ? '릴스 자동 게시 중...' : '🚀 테스트 릴스 즉시 게시 실행'}</span>
-              </button>
-            </div>
-
-            {instaPublishResult && (
-              <div className={`p-4 rounded-xl text-xs font-bold border leading-relaxed ${
-                instaPublishResult?.success
-                  ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
-                  : 'bg-rose-50 text-rose-900 border-rose-200'
-              }`}>
-                {instaPublishResult?.message}
-              </div>
-            )}
-          </div>
         </div>
       )}
 
@@ -1458,47 +1358,6 @@ export const PublishPage: React.FC<PublishPageProps> = ({ settings, onSaveSettin
             </div>
           </div>
 
-          {/* TikTok Direct Publish Pipeline Card */}
-          <div className="bg-white border border-cyan-200/90 rounded-2xl p-6 space-y-4 shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-cyan-100 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-cyan-500/10 text-cyan-600 flex items-center justify-center font-bold">
-                  <UploadCloud className="w-4 h-4 text-cyan-600" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-                    <span>틱톡 크리에이터 직접 자동 포스팅 파이프라인</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-100 text-cyan-800 font-extrabold">
-                      Direct Creator Posting API
-                    </span>
-                  </h3>
-                  <p className="text-xs text-slate-500 font-medium">
-                    TikTok Content Posting API 규격에 맞춰 고화질 9:16 비디오를 틱톡 계정에 즉시 원클릭으로 직접 게시합니다.
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleDirectPublishTiktok}
-                disabled={isPublishingTiktok || !tiktokAccessToken}
-                className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gradient-to-r from-slate-900 to-cyan-800 hover:from-slate-800 hover:to-cyan-700 text-white text-xs font-bold shadow-md shadow-cyan-900/20 disabled:opacity-40 transition-all shrink-0"
-              >
-                <UploadCloud className={`w-3.5 h-3.5 ${isPublishingTiktok ? 'animate-bounce' : ''}`} />
-                <span>{isPublishingTiktok ? '틱톡 자동 게시 중...' : '🚀 테스트 틱톡 즉시 포스팅 실행'}</span>
-              </button>
-            </div>
-
-            {tiktokPublishResult && (
-              <div className={`p-4 rounded-xl text-xs font-bold border leading-relaxed ${
-                tiktokPublishResult?.success
-                  ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
-                  : 'bg-rose-50 text-rose-900 border-rose-200'
-              }`}>
-                {tiktokPublishResult?.message}
-              </div>
-            )}
-          </div>
         </div>
       )}
 

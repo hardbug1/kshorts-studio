@@ -6307,56 +6307,6 @@ ipcMain.handle('export-multilingual-bundle', async (_, { projectId, videoPath, o
   }
 });
 
-ipcMain.handle('publish-to-instagram', async (_, { videoPath, caption, accountId, accessToken }) => {
-  if (!accountId || !accessToken) {
-    return { success: false, error: 'Instagram Account ID와 Access Token이 필요합니다.' };
-  }
-  if (!fs.existsSync(videoPath)) {
-    return { success: false, error: '업로드할 영상 파일을 찾을 수 없습니다.' };
-  }
-
-  // Realistic Instagram Graph API Container Posting Flow
-  try {
-    console.log(`[Instagram Direct Publisher] Initializing container for account: ${accountId}...`);
-    // Step 1: Simulated / Live Graph API Video Upload
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    console.log('[Instagram Direct Publisher] Video media container created. Polling upload status...');
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    console.log('[Instagram Direct Publisher] Media status: FINISHED. Publishing reel to feed...');
-    await new Promise((resolve) => setTimeout(resolve, 600));
-
-    return {
-      success: true,
-      message: `🎉 인스타그램 릴스 발행 완료! (계정: ${accountId}, 캡션: "${caption.slice(0, 25)}...")`,
-    };
-  } catch (err: any) {
-    return { success: false, error: `인스타그램 발행 실패: ${err.message}` };
-  }
-});
-
-ipcMain.handle('publish-to-tiktok', async (_, { videoPath, title, accessToken }) => {
-  if (!accessToken) {
-    return { success: false, error: 'TikTok Access Token이 필요합니다.' };
-  }
-  if (!fs.existsSync(videoPath)) {
-    return { success: false, error: '업로드할 영상 파일을 찾을 수 없습니다.' };
-  }
-
-  try {
-    console.log(`[TikTok Direct Publisher] Posting video "${title}" to TikTok Creator account...`);
-    await new Promise((resolve) => setTimeout(resolve, 900));
-    console.log('[TikTok Direct Publisher] Video stream uploaded to TikTok CDN.');
-    await new Promise((resolve) => setTimeout(resolve, 900));
-
-    return {
-      success: true,
-      message: `🎉 틱톡 크리에이터 영상 게시 완료! ("${title.slice(0, 30)}")`,
-    };
-  } catch (err: any) {
-    return { success: false, error: `틱톡 발행 실패: ${err.message}` };
-  }
-});
-
 ipcMain.handle('open-external-url', async (_, url: string) => {
   if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
     await shell.openExternal(url);

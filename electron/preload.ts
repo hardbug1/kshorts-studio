@@ -96,10 +96,6 @@ export const electronAPI = {
     ipcRenderer.invoke('get-youtube-live-stats'),
   uploadToInstagram: (params: { videoPath: string; caption: string }): Promise<{ success: boolean; mediaId?: string; message?: string; error?: string }> =>
     ipcRenderer.invoke('upload-to-instagram', params),
-  publishToInstagram: (params: { videoPath: string; caption: string; accountId: string; accessToken: string }): Promise<{ success: boolean; message?: string; error?: string }> =>
-    ipcRenderer.invoke('publish-to-instagram', params),
-  publishToTikTok: (params: { videoPath: string; title: string; accessToken: string }): Promise<{ success: boolean; message?: string; error?: string }> =>
-    ipcRenderer.invoke('publish-to-tiktok', params),
   openExternalUrl: (url: string): Promise<boolean> =>
     ipcRenderer.invoke('open-external-url', url),
 
