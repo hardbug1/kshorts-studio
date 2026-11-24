@@ -35,7 +35,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [youtubeAutoUpload, setYoutubeAutoUpload] = useState<boolean>(settings.youtubeAutoUpload || false);
   const [youtubeAutoComment, setYoutubeAutoComment] = useState<boolean>(settings.youtubeAutoComment || false);
   const [youtubeCommentText, setYoutubeCommentText] = useState<string>(settings.youtubeCommentText || '');
-  const [imageEngine, setImageEngine] = useState<'pollinations' | 'openai' | 'fal' | 'stability' | 'pexels' | 'pixabay' | 'gemini'>(
+  const [imageEngine, setImageEngine] = useState<'pollinations' | 'openai' | 'fal' | 'stability' | 'pexels' | 'pixabay' | 'gemini' | 'codex'>(
     settings.imageEngine || 'pollinations'
   );
   const [outputDir, setOutputDir] = useState(settings.outputDirectory || '');

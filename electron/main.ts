@@ -922,12 +922,16 @@ function getSubscriptionLlm(settings: AppSettings): SubscriptionLlm | null {
   return v === 'claude' || v === 'codex' ? v : null;
 }
 
-/** 셸 없이 구독 CLI를 실행하고 마지막 답변 텍스트만 돌려준다. */
-async function runSubscriptionLlm(engine: SubscriptionLlm, systemPrompt: string, userPrompt: string): Promise<string> {
+function subscriptionCliOptions(cwd: string, timeout: number) {
   // GUI로 실행한 앱은 로그인 셸의 PATH를 못 받으므로 흔한 설치 위치를 덧붙인다.
   const extraPaths = [path.join(os.homedir(), '.local', 'bin'), '/opt/homebrew/bin', '/usr/local/bin'];
   const env = { ...process.env, PATH: [process.env.PATH, ...extraPaths].filter(Boolean).join(path.delimiter) };
-  const opts = { cwd: os.tmpdir(), env, timeout: SUBSCRIPTION_LLM_TIMEOUT_MS, maxBuffer: 10 * 1024 * 1024 };
+  return { cwd, env, timeout, maxBuffer: 10 * 1024 * 1024 };
+}
+
+/** 셸 없이 구독 CLI를 실행하고 마지막 답변 텍스트만 돌려준다. */
+async function runSubscriptionLlm(engine: SubscriptionLlm, systemPrompt: string, userPrompt: string): Promise<string> {
+  const opts = subscriptionCliOptions(os.tmpdir(), SUBSCRIPTION_LLM_TIMEOUT_MS);
 
   if (engine === 'claude') {
     // 도구·MCP·사용자 설정을 빼서 호출당 컨텍스트를 줄인다 (구독 로그인은 유지된다; --bare는 로그인을 잃는다).
@@ -956,6 +960,55 @@ async function runSubscriptionLlm(engine: SubscriptionLlm, systemPrompt: string,
   } finally {
     fs.rmSync(outFile, { force: true });
   }
+}
+
+const CODEX_IMAGE_TIMEOUT_MS = 300_000;
+const CODEX_IMAGE_CONCURRENCY = 3;
+
+/** ChatGPT 구독(codex exec의 이미지 생성 도구)으로 세로 이미지 1장을 만든다. 빈 임시 폴더에서 실행하고 지운다. */
+async function generateCodexImage(visualPrompt: string): Promise<Buffer | null> {
+  const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kshorts-codex-img-'));
+  try {
+    const run = execFileAsync('codex', [
+      'exec', '--skip-git-repo-check', '--ephemeral', '-s', 'workspace-write',
+      'Generate exactly one vertical portrait image (1024x1536) with your image generation tool. ' +
+      'Strictly no text, no letters, no logos, no watermark. ' +
+      `Image description: ${visualPrompt}\n` +
+      'Save it as scene.png in the current directory. Reply only with the file path.',
+    ], subscriptionCliOptions(workDir, CODEX_IMAGE_TIMEOUT_MS));
+    run.child.stdin?.end(); // codex exec는 stdin이 열려 있으면 추가 입력을 기다리며 멈춘다
+    await run;
+    const file = fs.readdirSync(workDir).find((f) => /\.(png|jpe?g|webp)$/i.test(f));
+    return file ? fs.readFileSync(path.join(workDir, file)) : null;
+  } finally {
+    fs.rmSync(workDir, { recursive: true, force: true });
+  }
+}
+
+/** 장면별 Codex 이미지 생성을 동시에 최대 CODEX_IMAGE_CONCURRENCY개씩 미리 시작한다. null 프롬프트 장면은 건너뛴다. */
+function prefetchCodexImages(prompts: Array<string | null>): Array<Promise<Buffer | null> | undefined> {
+  let active = 0;
+  const waiting: Array<() => void> = [];
+  const acquire = () => new Promise<void>((resolve) => {
+    if (active < CODEX_IMAGE_CONCURRENCY) { active++; resolve(); } else waiting.push(() => { active++; resolve(); });
+  });
+  const release = () => { active--; waiting.shift()?.(); };
+
+  return prompts.map((p, idx) => {
+    if (!p) return undefined;
+    return (async () => {
+      await acquire();
+      try {
+        console.log(`[Codex Image] Generating scene ${idx + 1}...`);
+        return await generateCodexImage(p);
+      } catch (e) {
+        console.warn(`[Codex Image] Scene ${idx + 1} failed, falling back to other engines:`, e);
+        return null;
+      } finally {
+        release();
+      }
+    })();
+  });
 }
 
 async function callSubscriptionLlmForScript(
@@ -2357,7 +2410,8 @@ async function generateAiSceneImage(
   usedPhotoIdsInCurrentShort?: Set<string>,
   title: string = '',
   isThumbnail: boolean = false,
-  customVisualPrompt?: string
+  customVisualPrompt?: string,
+  prefetchedCodexImage?: Promise<Buffer | null>
 ): Promise<Buffer | null> {
   const visualContext = extractVisualKeywords(prompt, sceneDesc);
   const englishVisualPrompt = getEnglishTopicAndVisual(
@@ -2682,9 +2736,22 @@ async function generateAiSceneImage(
     return null;
   };
 
+  // Provider: ChatGPT 구독 (codex exec 이미지 생성). 렌더 파이프라인이 미리 시작해 둔 결과가 있으면 그것을 쓴다.
+  const tryCodex = async (): Promise<Buffer | null> => {
+    try {
+      const buf = await (prefetchedCodexImage ?? generateCodexImage(englishVisualPrompt));
+      return buf ? verifyAndRecordBuffer(buf) : null;
+    } catch (e) {
+      console.warn(`[Codex Image] Scene ${sceneIdx + 1} failed:`, e);
+      return null;
+    }
+  };
+
   // Construct priority execution sequence based on user preference
   let executionPlan: (() => Promise<Buffer | null>)[] = [];
-  if (selectedEngine === 'gemini') {
+  if (selectedEngine === 'codex') {
+    executionPlan = [tryCodex, tryPollinationsFlux, tryPexels, tryPollinationsTurbo];
+  } else if (selectedEngine === 'gemini') {
     executionPlan = [tryGemini, tryPollinationsFlux, tryOpenAi, tryPexels, tryPollinationsTurbo];
   } else if (selectedEngine === 'openai') {
     executionPlan = [tryOpenAi, tryFal, tryPollinationsFlux, tryPexels, tryPollinationsTurbo];
@@ -3835,11 +3902,27 @@ async function executeRenderPipeline(
 
     const sceneMediaList: Array<{ type: 'video' | 'image'; path: string }> = [];
 
+    const sceneCustomPrompts = Array.from({ length: sceneCount }, (_, s) => {
+      const sceneVisual = customScenes?.[s]?.visualPrompt || '';
+      return (sceneVisual && !/[\u1100-\u11FF\u3130-\u318F\uAC00-\uD7AF]/.test(sceneVisual) ? sceneVisual : '') || aiVisualPrompts[s] || sceneVisual;
+    });
+
+    // ChatGPT \uAD6C\uB3C5(Codex) \uC774\uBBF8\uC9C0\uB294 \uC7A5\uBA74\uB2F9 \uC57D 1\uBD84\uC774\uB77C, \uC774\uBBF8\uC9C0\uB97C \uC4F8 \uC7A5\uBA74\uC744 \uBBF8\uB9AC \uBCD1\uB82C\uB85C \uC0DD\uC131\uD574 \uB454\uB2E4.
+    // shortcut: \uC2A4\uD1A1 \uC601\uC0C1 \uAC80\uC0C9 \uC7A5\uBA74\uC740 \uACB0\uACFC\uB97C \uBBF8\uB9AC \uC54C \uC218 \uC5C6\uC5B4 \uC81C\uC678\uD55C\uB2E4(\uC601\uC0C1 \uC2E4\uD328 \uC2DC \uADF8 \uC7A5\uBA74\uB9CC \uC21C\uCC28 \uC0DD\uC131).
+    const codexPrefetch = settings.imageEngine === 'codex' && !params.enableStockVideo
+      ? prefetchCodexImages(Array.from({ length: sceneCount }, (_, s) => {
+          const cs = customScenes?.[s];
+          if (cs && (cs.mediaType === 'video' || cs.videoUrl)) return null;
+          return getEnglishTopicAndVisual(
+            prompt, extractVisualKeywords(prompt, sceneDescriptions[s]), s, templateId, s === 0, title || prompt, sceneCustomPrompts[s]
+          );
+        }))
+      : [];
+
     for (let s = 0; s < sceneCount; s++) {
       const isThumbnail = (s === 0);
       const sceneContext = sceneDescriptions[s];
-      const sceneVisual = customScenes?.[s]?.visualPrompt || '';
-      const customPrompt = (sceneVisual && !/[\u1100-\u11FF\u3130-\u318F\uAC00-\uD7AF]/.test(sceneVisual) ? sceneVisual : '') || aiVisualPrompts[s] || sceneVisual;
+      const customPrompt = sceneCustomPrompts[s];
       const cs = customScenes?.[s];
 
       let sceneVideoPath: string | null = null;
@@ -3923,7 +4006,8 @@ async function executeRenderPipeline(
           usedPhotoIdsInCurrentShort,
           title || prompt,
           isThumbnail,
-          customPrompt
+          customPrompt,
+          codexPrefetch[s]
         );
 
         const framePath = path.join(scenesTempDir, `scene_${s}.png`);

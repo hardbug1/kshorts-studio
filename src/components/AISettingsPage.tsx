@@ -23,7 +23,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({
   const [elevenlabsApiKey, setElevenlabsApiKey] = useState(settings.elevenlabsApiKey || '');
   const [pexelsApiKey, setPexelsApiKey] = useState(settings.pexelsApiKey || '');
   const [pixabayApiKey, setPixabayApiKey] = useState(settings.pixabayApiKey || '');
-  const [imageEngine, setImageEngine] = useState<'pollinations' | 'openai' | 'fal' | 'stability' | 'pexels' | 'pixabay' | 'gemini'>(
+  const [imageEngine, setImageEngine] = useState<'pollinations' | 'openai' | 'fal' | 'stability' | 'pexels' | 'pixabay' | 'gemini' | 'codex'>(
     settings.imageEngine || 'pollinations'
   );
   const [subscriptionLlm, setSubscriptionLlm] = useState<'off' | 'claude' | 'codex'>(settings.subscriptionLlm || 'off');
@@ -492,6 +492,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {[
+            { id: 'codex', name: 'ChatGPT 구독 (Codex)', desc: '이 PC의 codex 로그인으로 주제 맞춤 AI 이미지 생성 (키 불필요, 장면당 약 1분, 본인 사용 전용)' },
             { id: 'gemini', name: 'Google Gemini (Imagen 3)', desc: 'Gemini API 키를 이용한 포토리얼리스틱 고화질 AI 이미지' },
             { id: 'pexels', name: 'Pexels 실사 미디어 (비디오 & 사진)', desc: '9:16 실사 세로 비디오 우선 매칭 (비디오 없을 시 고화질 스톡 사진 자동 폴백)' },
             { id: 'pixabay', name: 'Pixabay 무료 미디어', desc: '풍부한 무료 스톡 비디오 & 사진 미디어' },
