@@ -349,6 +349,12 @@ export default function App() {
     localStorage.setItem('kshorts_tokens', String(initialTokens));
   };
 
+  // 개인용(혼자 사용): 인증 키 입력 없이 관리자로 자동 로그인한다. 구매자 빌드는 기존 로그인 화면을 유지한다.
+  useEffect(() => {
+    if (__BUYER_BUILD__ || user) return;
+    handleLogin({ userName: '마스터 관리자', licenseKey: 'KSH-MASTER-ADMIN-SESSION', isAdmin: true });
+  }, [user]);
+
   const handleLogout = () => {
     void window.electronAPI?.logoutLicense?.();
     setUser(null);
@@ -624,7 +630,9 @@ export default function App() {
 
   // If not logged in, show User Login / Access screen
   if (!user || !user.isLoggedIn) {
-    return <LoginScreen onLogin={handleLogin} />;
+    // 개인용: 위 effect가 자동 로그인하므로 인증 키 화면은 구매자 빌드에서만 띄운다.
+    // return <LoginScreen onLogin={handleLogin} />;
+    return __BUYER_BUILD__ ? <LoginScreen onLogin={handleLogin} /> : null;
   }
 
   return (
