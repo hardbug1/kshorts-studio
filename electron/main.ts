@@ -584,7 +584,7 @@ function calculateNextRunTime(config: AutoPilotSchedule, forceFuture: boolean = 
 
   // 1. Custom minute interval
   if (config.frequency === 'custom_minutes') {
-    const mins = Math.max(5, Number(config.customIntervalValue) || 30);
+    const mins = Math.max(10, Number(config.customIntervalValue) || 30); // 화면 최소값과 같게
     return new Date(now.getTime() + mins * 60 * 1000).toISOString();
   }
 
@@ -620,6 +620,19 @@ function calculateNextRunTime(config: AutoPilotSchedule, forceFuture: boolean = 
     default:
       intervalHours = 24;
       break;
+  }
+
+  // 24의 약수가 아닌 간격(5시간, 48시간 등)은 아래의 '하루 안 칸 나누기'로는 틀어진다
+  // (48시간이 24시간마다, 5시간이 하루 한 번 4시간 간격). 마지막 실행 시각에서 정확히 간격만큼 더한다.
+  if (24 % intervalHours !== 0) {
+    const intervalMs = intervalHours * 3600 * 1000;
+    const todayAnchor = new Date(now);
+    todayAnchor.setHours(targetH, targetM, 0, 0);
+    const lastRunMs = config.lastRunAt ? new Date(config.lastRunAt).getTime() : NaN;
+    let next = Number.isFinite(lastRunMs) ? lastRunMs + intervalMs : todayAnchor.getTime();
+    const earliest = now.getTime() + (forceFuture ? 15000 : 0);
+    while (next < earliest) next += intervalMs;
+    return new Date(next).toISOString();
   }
 
   // Build candidate run dates spanning yesterday, today, tomorrow, day after tomorrow
