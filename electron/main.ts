@@ -3031,6 +3031,25 @@ function formatHeaderTitle(rawTitle: string): { formattedText: string; fontSize:
   return { formattedText, fontSize };
 }
 
+// 자막 강조 키워드. \b는 영문 단어 경계만 알아 한국어 키워드가 하나도 안 걸렸고,
+// u 플래그가 없으면 [🔥] 같은 문자 집합이 이모지를 반으로 쪼개 그 사이에 색 태그가 들어가 깨졌다.
+const SUBTITLE_KEYWORD_RE = /(\d+[\w%개가지분초원배호건년월일]*|[!⚡🔥🚨📌💡★]|비밀|꿀팁|성공|습관|방법|인생|충격|주의|절대|특징|이유|핵심|진실|법칙|시작|결과|발견|기적|돈|부자|위험|경고|필수|대박|레전드|폭망|역대급|소름|반전|1등|상위1%|무조건|진짜|확인|완전|최악|최고|비결|해결|정답|차이|원인|실수|도움|변화|도전|꿀잼|인기|화제|포기|극복)/u;
+
+// libass는 맥의 컬러 이모지 글꼴(Apple Color Emoji)을 그리지 못해 □로 찍는다. 맥에서는 자막의 이모지를 뺀다.
+const STRIP_SUBTITLE_EMOJI = process.platform === 'darwin';
+
+function stripSubtitleEmoji(s: string): string {
+  if (!STRIP_SUBTITLE_EMOJI) return s;
+  return s.replace(/[\p{Extended_Pictographic}️‍]/gu, '').replace(/ {2,}/g, ' ').trim();
+}
+
+/** ASS 대사에 넣을 사용자·AI 문장을 정리한다. { } 는 서식 태그, \ 는 제어 문자로 해석되고, 줄바꿈은 대사 줄을 끊는다. */
+function assText(raw: string): string {
+  return stripSubtitleEmoji(
+    String(raw || '').replace(/\r?\n/g, ' ').replace(/\\/g, '＼').replace(/\{/g, '｛').replace(/\}/g, '｝')
+  );
+}
+
 function buildAssSubtitles(
   vttContent: string,
   title: string,
@@ -3052,7 +3071,7 @@ function buildAssSubtitles(
   } = {}
 ): string {
   const fontName = resolveAssFontName(fontId);
-  const { formattedText: headerTitle, fontSize: headerFontSize } = formatHeaderTitle(title);
+  const { formattedText: headerTitle, fontSize: headerFontSize } = formatHeaderTitle(assText(title));
   const enableHook = options.enableHookIntro !== false;
   const enablePopup = options.enablePopupSubtitles !== false;
   const enableEmojiStickers = options.enableEmojiStickers !== false;
@@ -3215,13 +3234,13 @@ function buildAssSubtitles(
     } else if (titleStyle === 'dark_pill') {
       titleText = `📌 ${headerTitle}`;
     }
-    events += 'Dialogue: 0,0:00:00.00,' + totalAssDuration + ',Header,,0,0,0,,{\\an8\\b1}' + titleText + '\n';
+    events += 'Dialogue: 0,0:00:00.00,' + totalAssDuration + ',Header,,0,0,0,,{\\an8\\b1}' + stripSubtitleEmoji(titleText) + '\n';
   }
 
   // First 2.3s Hook Intro Banner (Attention Grabber)
   if (enableHook && durationSec >= 5) {
-    const mainHook = options.hookTitleText?.trim() || '⚡ 놓치면 손해 3초 꿀팁 ⚡';
-    const subHook = options.hookSubtitleText?.trim() || '끝까지 보면 인생이 바뀝니다';
+    const mainHook = assText(options.hookTitleText?.trim() || '⚡ 놓치면 손해 3초 꿀팁 ⚡');
+    const subHook = assText(options.hookSubtitleText?.trim() || '끝까지 보면 인생이 바뀝니다');
     events += `Dialogue: 2,0:00:00.00,0:00:02.30,HookBanner,,0,0,0,,{\\an5\\b1\\t(0,90,\\fscx112\\fscy112)\\t(90,180,\\fscx100\\fscy100)\\c&H00FFFF&}${mainHook}\\N{\\fs42\\c&HFFFFFF&}${subHook}\n`;
   }
 
@@ -3246,7 +3265,7 @@ function buildAssSubtitles(
   for (const cue of cues) {
     const startAss = msToAssTime(cue.startMs);
     const endAss = msToAssTime(cue.endMs);
-    const text = cue.text;
+    const text = assText(cue.text);
 
     // Subtitle Motion Animation (Bounce, Slide Up, Fade, Typewriter)
     let popAnim = '';
@@ -3301,7 +3320,7 @@ function buildAssSubtitles(
       // Keywords and numbers emphasis across all sentences
       const enableHighlight = options.highlightKeywords !== false;
       if (enableHighlight) {
-        const keywordPattern = /(\d+[\w%개가지분초원배호건년월일]*|[!⚡🔥🚨📌💡★]|\b(?:비밀|꿀팁|성공|습관|방법|인생|충격|주의|절대|특징|이유|핵심|진실|법칙|시작|결과|발견|기적|돈|부자|위험|경고|필수|대박|레전드|폭망|역대급|소름|반전|1등|상위1%|무조건|진짜|확인|완전|최악|최고|비결|해결|정답|차이|원인|실수|도움|변화|도전|꿀잼|인기|화제|포기|극복)\b)/g;
+        const keywordPattern = new RegExp(SUBTITLE_KEYWORD_RE.source, 'gu');
         formattedText = formattedText.replace(keywordPattern, `{\\c${keywordHighlightColor}}$1${baseColorTag}`);
       }
 
@@ -3309,7 +3328,7 @@ function buildAssSubtitles(
     }
 
     // Dynamic Emoji Sticker Overlay Detection (Cooldown: 3.2s)
-    if (enableEmojiStickers && cue.startMs >= lastStickerEndMs + 3200) {
+    if (enableEmojiStickers && !STRIP_SUBTITLE_EMOJI && cue.startMs >= lastStickerEndMs + 3200) {
       for (const rule of EMOJI_STICKER_RULES) {
         if (rule.pattern.test(text)) {
           const stickerStartMs = cue.startMs;
@@ -3688,7 +3707,7 @@ async function buildSfxTrack(
     if (options?.vttContent && options?.syncHighlightSfx !== false) {
       const parsedCues = parseVttToCues(options.vttContent);
       let lastKeywordSfxMs = -3000; // 2.8s cooldown
-      const keywordRegex = /(\d+[\w%개가지분초원배호건년월일]*|[!⚡🔥🚨📌💡★]|\b(?:비밀|꿀팁|성공|습관|방법|인생|충격|주의|절대|특징|이유|핵심|진실|법칙|시작|결과|발견|기적|돈|부자|위험|경고|필수|대박|레전드|폭망|역대급|소름|반전|1등|상위1%|무조건|진짜|확인|완전|최악|최고|비결|해결|정답|차이|원인|실수|도움|변화|도전|꿀잼|인기|화제|포기|극복)\b)/;
+      const keywordRegex = SUBTITLE_KEYWORD_RE;
 
       for (const cue of parsedCues) {
         // Skip first 2.5s and last 1.5s
