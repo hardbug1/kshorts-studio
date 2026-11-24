@@ -515,9 +515,16 @@ const BUYER_EDITION_BLOCKED = { success: false, error: '이 기능은 판매자(
 const SECRET_SETTING_KEY = /(ApiKey|Secret|Token|ClientKey)$/;
 const ENCRYPTED_PREFIX = 'enc:v1:';
 
+// 풀지 못한 암호문(다른 PC·계정, DPAPI 오류 등). 화면에는 빈 값으로 보이지만,
+// 빈 값으로 저장하면 원래 키를 영영 잃으므로 새 값을 입력하기 전까지는 원래 암호문을 그대로 다시 쓴다.
+const undecryptableSecrets = new Map<string, string>();
+
 function encryptSettingSecrets(settings: AppSettings): Record<string, unknown> {
   const store = licenseSafeStorage();
   const out: Record<string, unknown> = { ...(settings as unknown as Record<string, unknown>) };
+  for (const [k, cipher] of undecryptableSecrets) {
+    if (!out[k]) out[k] = cipher;
+  }
   if (!store) return out;
   for (const [k, v] of Object.entries(out)) {
     if (SECRET_SETTING_KEY.test(k) && typeof v === 'string' && v && !v.startsWith(ENCRYPTED_PREFIX)) {
@@ -533,9 +540,14 @@ function decryptSettingSecrets(raw: Record<string, unknown>): AppSettings {
     if (typeof v === 'string' && v.startsWith(ENCRYPTED_PREFIX)) {
       const store = licenseSafeStorage();
       try {
-        out[k] = store ? store.decryptString(Buffer.from(v.slice(ENCRYPTED_PREFIX.length), 'base64')) : '';
-      } catch {
-        out[k] = ''; // 다른 PC·계정에서 복사해 온 값은 풀 수 없다 → 다시 입력받는다
+        if (!store) throw new Error('safeStorage unavailable');
+        out[k] = store.decryptString(Buffer.from(v.slice(ENCRYPTED_PREFIX.length), 'base64'));
+        undecryptableSecrets.delete(k);
+      } catch (err) {
+        // 다른 PC·계정에서 복사해 온 값 등은 풀 수 없다 → 화면에서는 다시 입력받고, 원래 암호문은 보존한다
+        out[k] = '';
+        if (!undecryptableSecrets.has(k)) console.error(`[Settings] ${k}를 복호화하지 못했습니다. 다시 입력할 때까지 원래 값을 보존합니다.`, err);
+        undecryptableSecrets.set(k, v);
       }
     }
   }
