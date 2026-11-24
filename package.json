@@ -18,7 +18,8 @@
     "dist:win": "node scripts/run-edition.js buyer npm run build && electron-builder --win nsis && node scripts/make-checksum.js",
     "release": "npm run dist:win && node scripts/publish-release.js",
     "dist": "node scripts/run-edition.js buyer npm run build && electron-builder --win nsis && node scripts/make-checksum.js",
-    "build:buyer": "node scripts/run-edition.js buyer npm run build"
+    "build:buyer": "node scripts/run-edition.js buyer npm run build",
+    "test": "npm run build && node scripts/test-features-runtime.js"
   },
   "dependencies": {
     "clsx": "^2.1.1",

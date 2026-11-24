@@ -202,8 +202,8 @@ const mainCjs = fs.readFileSync(path.join(__dirname, '..', 'dist-electron', 'mai
 assert(mainCjs.includes('translate-script-multilingual'), 'main.cjs 번들에 translate-script-multilingual 핸들러 포함 확인');
 assert(mainCjs.includes('generate-hooking-variants'), 'main.cjs 번들에 generate-hooking-variants 핸들러 포함 확인');
 assert(mainCjs.includes('export-multilingual-bundle'), 'main.cjs 번들에 export-multilingual-bundle 핸들러 포함 확인');
-assert(mainCjs.includes('publish-to-instagram'), 'main.cjs 번들에 publish-to-instagram 핸들러 포함 확인');
-assert(mainCjs.includes('publish-to-tiktok'), 'main.cjs 번들에 publish-to-tiktok 핸들러 포함 확인');
+assert(!mainCjs.includes('publish-to-instagram'), 'API를 부르지 않던 가짜 publish-to-instagram 핸들러가 제거됨');
+assert(!mainCjs.includes('publish-to-tiktok'), 'API를 부르지 않던 가짜 publish-to-tiktok 핸들러가 제거됨');
 
 // ----------------------------------------------------
 // Test 6: Broadcast SFX Audio Files & Sound Design Engine Test
@@ -339,7 +339,7 @@ assert(hasCalendarChunk, 'PublishCalendarModal 전용 독립 번들 청크 분�
 console.log('\n--- Test 14: FFmpeg GPU 하드웨어 가속 및 속도 최적화 검증 ---');
 assert(mainCjs.includes('h264_nvenc'), 'NVIDIA NVENC GPU 하드웨어 가속 인코더 탐색 로직 확인');
 assert(mainCjs.includes('h264_qsv'), 'Intel QuickSync QSV 하드웨어 가속 탐색 로직 확인');
-assert(mainCjs.includes('-preset ultrafast -tune fastdecode -threads 0'), 'CPU 전 코어 병렬 인코딩(-threads 0) 최적화 플래그 확인');
+assert(mainCjs.includes('-preset veryfast -crf 18 -threads 0'), 'CPU 인코딩: veryfast + CRF 18 + 전 코어(-threads 0)');
 
 // ----------------------------------------------------
 // Test 15: Windows Packaging & Release Configuration Test
@@ -578,9 +578,9 @@ console.log('\n--- [테스트 20] 3순위: 텔레그램 알림 봇 고화질 썸
 assert(compiledBundle.includes('sendPhoto'), 'main.cjs 번들에 Telegram sendPhoto API 연동 확인');
 assert(compiledBundle.includes('thumbnailPath'), 'main.cjs 번들에 텔레그램 썸네일 이미지 전송 파라미터 확인');
 assert(compiledBundle.includes('test-instagram-connection'), 'main.cjs 번들에 Instagram 연결 테스트 채널 확인');
-assert(compiledBundle.includes('publish-to-instagram'), 'main.cjs 번들에 Instagram 릴스 자동 발행 채널 확인');
+assert(!compiledBundle.includes('publish-to-instagram'), '가짜 Instagram 발행 채널이 번들에 없음');
 assert(compiledBundle.includes('test-tiktok-connection'), 'main.cjs 번들에 TikTok 연결 테스트 채널 확인');
-assert(compiledBundle.includes('publish-to-tiktok'), 'main.cjs 번들에 TikTok 피드 자동 발행 채널 확인');
+assert(!compiledBundle.includes('publish-to-tiktok'), '가짜 TikTok 발행 채널이 번들에 없음');
 
 console.log('\n--- [테스트 21] 4순위: Windows 최종 배포용 인스톨러 및 빌드 무결성 검증 ---');
 assert(fs.existsSync(path.join(__dirname, '..', 'dist', 'index.html')), 'dist/index.html 빌드 산출물 무결성 확인');
@@ -617,7 +617,7 @@ console.log('\n--- [테스트 23] 2순위: 씬 전환 효과, 자막 핵심 단�
 assert(mainTsSource.includes('highlightKeywords'), 'main.ts에 highlightKeywords 자막 하이라이트 옵션 연동 확인');
 assert(mainTsSource.includes('transitionType'), 'main.ts에 transitionType 씬 전환 효과 연동 확인');
 assert(mainTsSource.includes('afade=t=out:st='), 'main.ts에 영상 끝단 1.5초 오디오 자연스러운 페이드아웃(afade) 탑재 확인');
-assert(mainTsSource.includes('fade=t=in:st=0') && mainTsSource.includes('fade=t=out:st='), 'main.ts FFmpeg 씬 전환 디졸브 페이드 필터 체인 탑재 확인');
+assert(mainTsSource.includes('xfade=transition=fade'), 'main.ts 장면 전환은 검은 화면 대신 크로스페이드(xfade)');
 assert(tmplSelectorSource.includes('씬 전환 효과:'), 'TemplateSelector.tsx에 씬 전환 효과 선택 칩 바 탑재 확인');
 assert(tmplSelectorSource.includes('부드러운 페이드') && tmplSelectorSource.includes('다이내믹 줌'), 'TemplateSelector.tsx에 페이드/줌 트랜지션 선택 옵션 확인');
 assert(subtitleSelectorSource.includes('핵심 단어 & 숫자 자동 하이라이트 컬러'), 'SubtitleStyleSelector.tsx에 핵심 단어 하이라이트 토글 스위치 탑재 확인');
@@ -884,7 +884,7 @@ console.log('\n--- [테스트 34] 병렬 렌더링 동시성 계산 & 워커 풀
 
     assert(mainTsSource.includes('runWithDynamicConcurrency(rawItems, processItem'), 'start-batch-job이 병렬 워커 풀을 사용');
     assert(mainTsSource.includes("maxParallel ?? 'auto'") , 'start-batch-job이 maxParallel 설정(기본 auto)을 반영');
-    assert(mainTsSource.includes('kshorts_sub_${id}_'), '자막 임시 파일명에 항목 id 포함(병렬 시 충돌 방지)');
+    assert(mainTsSource.includes('kshorts_out_${id}_') && mainTsSource.includes('kshorts_scenes_${id}_'), '렌더 임시 파일명에 항목 id 포함(병렬 시 충돌 방지)');
     const ui = fs.readFileSync(path.join(__dirname, '..', 'src', 'components', 'BatchGeneratorModal.tsx'), 'utf8');
     assert(ui.includes('maxParallel') && ui.includes('activeItems') && ui.includes('data.completedCount'), 'BatchGeneratorModal에 동시 렌더링 선택/항목별 진행/서버 집계 완료 건수 반영');
   })());
@@ -1300,6 +1300,47 @@ console.log('\n--- 라이선스: 서버 장부 클라이언트 / 선차감·환�
   } else {
     console.warn('⚠️ 서버 비밀값(.secrets.json)이 없어 실제 키쌍 일치 검증은 건너뜀');
   }
+}
+
+// 버그 수정 회귀 테스트: main.ts 의 함수를 잘라 실제로 실행한다
+{
+  const tsR = require('typescript');
+  const cut = (name) => {
+    const i = mainTsSource.indexOf(`function ${name}`);
+    const end = mainTsSource.indexOf('\n}\n', i);
+    if (i < 0 || end < 0) throw new Error(`${name} 을 main.ts 에서 찾지 못함`);
+    return mainTsSource.slice(i, end + 3);
+  };
+  const load = (src, names, deps = {}) => {
+    const js = tsR.transpileModule(src + `\nmodule.exports = { ${names.join(', ')} };`, { compilerOptions: { module: tsR.ModuleKind.CommonJS, target: tsR.ScriptTarget.ES2020 } }).outputText;
+    const m = { exports: {} };
+    new Function('module', 'exports', ...Object.keys(deps), js)(m, m.exports, ...Object.values(deps));
+    return m.exports;
+  };
+
+  // 1) JSON 저장소: 깨진 파일은 빈 값으로 덮지 않고 .corrupt-* 로 보존
+  const os = require('os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kshorts-store-'));
+  const store = load(cut('writeJsonAtomic') + cut('readJsonStore'), ['writeJsonAtomic', 'readJsonStore'], { fs, path, console: { error() {} } });
+  const f = path.join(dir, 'p.json');
+  store.writeJsonAtomic(f, [{ id: 1 }]);
+  assert(store.readJsonStore(f, [])[0].id === 1, 'writeJsonAtomic → readJsonStore 왕복');
+  fs.writeFileSync(f, '{broken');
+  assert(store.readJsonStore(f, []).length === 0 && fs.readdirSync(dir).some((n) => n.startsWith('p.json.corrupt-')), '깨진 저장소 파일은 .corrupt-* 로 보존');
+  fs.rmSync(dir, { recursive: true, force: true });
+
+  // 2) 예약 간격: 24의 약수가 아닌 간격은 마지막 실행 + 간격
+  const sched = load(cut('calculateNextRunTime'), ['calculateNextRunTime']);
+  const last = new Date(Date.now() - 3600 * 1000).toISOString();
+  const gapH = (cfg) => (new Date(sched.calculateNextRunTime({ ...cfg, lastRunAt: last })).getTime() - new Date(last).getTime()) / 3600000;
+  assert(gapH({ frequency: 'custom_hours', customIntervalValue: 48, scheduleTime: '18:00' }) === 48, '48시간 간격 = 마지막 실행 + 48시간');
+  assert(gapH({ frequency: 'custom_hours', customIntervalValue: 5, scheduleTime: '18:00' }) === 5, '5시간 간격 = 마지막 실행 + 5시간');
+
+  // 3) 자막 ASS 이스케이프: { } \ 줄바꿈이 서식 태그로 해석되지 않음
+  const sIdx = mainTsSource.indexOf('const STRIP_SUBTITLE_EMOJI');
+  const sub = load(mainTsSource.slice(sIdx, mainTsSource.indexOf('\n}\n', mainTsSource.indexOf('function assText')) + 3), ['assText'], { process: { platform: 'darwin' } });
+  const out = sub.assText('a{\\b1}b\\N\nc 🔥');
+  assert(!/[{}\\\n]/.test(out) && !out.includes('🔥'), 'assText: 중괄호·역슬래시·줄바꿈·이모지(맥) 제거/치환');
 }
 
 function finish() {
