@@ -6859,6 +6859,25 @@ ipcMain.handle('analyze-youtube-performance', async () => {
 let isAutoPilotRunning = false;
 let isAutoPilotCancelled = false;
 
+class AutoPilotCancelledError extends Error {}
+/** 렌더(과금)·업로드(공개) 같은 되돌릴 수 없는 단계 직전에 호출한다. 진행 중인 렌더 자체는 멈추지 못한다. */
+function throwIfAutoPilotCancelled(stage: string): void {
+  if (isAutoPilotCancelled) {
+    throw new AutoPilotCancelledError(`사용자가 오토파일럿을 중지해 ${stage} 전에 멈췄습니다.`);
+  }
+}
+
+/** 실행 결과만 기록한다. 실행 중에 사용자가 바꾼 설정(중지 포함)을 시작 시점 설정으로 덮어쓰지 않게 다시 읽는다. */
+function recordAutoPilotRun(timestamp: string, historyItem: AutoPilotHistoryItem): void {
+  const latest = getStoredAutoPilotConfig();
+  saveStoredAutoPilotConfig({
+    ...latest,
+    lastRunAt: timestamp,
+    nextRunAt: calculateNextRunTime(latest, true),
+    history: [historyItem, ...(latest.history || []).slice(0, 49)],
+  });
+}
+
 function broadcastAutoPilotStatus(data: AutoPilotStatusEvent) {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('autopilot-status', data);
@@ -6934,7 +6953,6 @@ async function executeAutoPilotJob(forceNow = false): Promise<{ success: boolean
 
     if (isAutoPilotCancelled) {
       console.log('[AutoPilot] Aborted by user after topic generation.');
-      isAutoPilotRunning = false;
       broadcastAutoPilotStatus({ isRunning: false, currentStep: 'idle', message: '예약이 중단되어 진행 중이던 작업이 정지되었습니다.' });
       return { success: false, error: '사용자에 의해 예약이 중지되었습니다.' };
     }
@@ -6984,6 +7002,8 @@ async function executeAutoPilotJob(forceNow = false): Promise<{ success: boolean
       console.log(`[AutoPilot] Using 100% title-matched smart script for title: "${title}"`);
       script = generateSmartKoreanScript(topic, title);
     }
+
+    throwIfAutoPilotCancelled('영상 제작(토큰 차감)');
 
     // 프로젝트 목록에 등록
     const newProject: ShortsProject = {
@@ -7051,6 +7071,7 @@ async function executeAutoPilotJob(forceNow = false): Promise<{ success: boolean
 
     // 3. YouTube Auto-Upload & Auto-Comment
     if (config.autoUploadYoutube) {
+      throwIfAutoPilotCancelled('유튜브 업로드');
       if (!settings.youtubeClientId || !settings.youtubeRefreshToken) {
         uploadStatus = 'failed';
         uploadErrorMsg = '유튜브 연동 정보(Client ID 또는 Refresh Token)가 누락되어 업로드를 진행할 수 없습니다.';
@@ -7121,10 +7142,7 @@ async function executeAutoPilotJob(forceNow = false): Promise<{ success: boolean
       sourceVideoId,
     };
 
-    config.lastRunAt = timestamp;
-    config.nextRunAt = calculateNextRunTime(config, true);
-    config.history = [historyItem, ...(config.history || []).slice(0, 49)];
-    saveStoredAutoPilotConfig(config);
+    recordAutoPilotRun(timestamp, historyItem);
 
     const commentInfoMsg = commentStatus === 'posted'
       ? ' (첫 댓글 등록 완료 💬)'
@@ -7169,10 +7187,7 @@ async function executeAutoPilotJob(forceNow = false): Promise<{ success: boolean
       errorMessage: errorMsg,
     };
 
-    config.lastRunAt = timestamp;
-    config.nextRunAt = calculateNextRunTime(config, true);
-    config.history = [historyItem, ...(config.history || []).slice(0, 49)];
-    saveStoredAutoPilotConfig(config);
+    recordAutoPilotRun(timestamp, historyItem);
 
     broadcastAutoPilotStatus({
       isRunning: false,
@@ -7217,13 +7232,15 @@ ipcMain.handle('get-autopilot-config', async () => {
 
 ipcMain.handle('save-autopilot-config', async (_, newConfig: AutoPilotSchedule) => {
   if (!newConfig.enabled) {
-    console.log('[AutoPilot] Schedule turned OFF (예약 끄기). Immediately stopping all ongoing tasks...');
+    console.log('[AutoPilot] Schedule turned OFF (예약 끄기). Stopping the running job before its next step...');
+    // isAutoPilotRunning은 실행 중인 작업이 실제로 끝날 때(finally)만 내린다. 여기서 내리면 두 번째 작업이 동시에 돌아 이중 과금됐다.
     isAutoPilotCancelled = true;
-    isAutoPilotRunning = false;
     broadcastAutoPilotStatus({
       isRunning: false,
       currentStep: 'idle',
-      message: '예약이 비활성화되었습니다. 진행 중이던 모든 작업이 강제 중단(STOP)되었습니다.',
+      message: isAutoPilotRunning
+        ? '예약이 비활성화되었습니다. 진행 중인 단계가 끝나면 멈추며, 영상은 업로드하지 않습니다.'
+        : '예약이 비활성화되었습니다.',
     });
   } else {
     isAutoPilotCancelled = false;
@@ -7242,20 +7259,16 @@ ipcMain.handle('save-autopilot-config', async (_, newConfig: AutoPilotSchedule) 
 
 ipcMain.handle('stop-autopilot', async () => {
   console.log('[AutoPilot] stop-autopilot invoked. Terminating active tasks and setting schedule to disabled...');
-  isAutoPilotCancelled = true;
-  isAutoPilotRunning = false;
+  isAutoPilotCancelled = true; // isAutoPilotRunning은 실행 중인 작업의 finally가 내린다
 
-  const config = getStoredAutoPilotConfig();
-  config.enabled = false;
-  saveStoredAutoPilotConfig(config);
+  saveStoredAutoPilotConfig({ ...getStoredAutoPilotConfig(), enabled: false });
 
-  broadcastAutoPilotStatus({
-    isRunning: false,
-    currentStep: 'idle',
-    message: '오토파일럿 예약이 종료되었습니다. 진행 중이던 모든 작업이 강제 종료되었습니다.',
-  });
+  const stopMsg = isAutoPilotRunning
+    ? '오토파일럿 예약을 껐습니다. 진행 중인 단계가 끝나면 멈추며, 영상은 업로드하지 않습니다.'
+    : '오토파일럿 예약을 껐습니다.';
+  broadcastAutoPilotStatus({ isRunning: false, currentStep: 'idle', message: stopMsg });
 
-  return { success: true, message: '진행 중이던 오토파일럿 작업이 모두 중지되었습니다.' };
+  return { success: true, message: stopMsg };
 });
 
 ipcMain.handle('trigger-autopilot-now', async () => {
