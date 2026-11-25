@@ -1005,6 +1005,7 @@ type SubscriptionLlm = 'claude' | 'codex';
 const SUBSCRIPTION_LLM_TIMEOUT_MS = 180_000;
 
 function getSubscriptionLlm(settings: AppSettings): SubscriptionLlm | null {
+  if (IS_BUYER_EDITION) return null; // 본인 PC 개인 구독 전용 기능이라 구매자판에서는 끈다
   const v = settings.subscriptionLlm;
   return v === 'claude' || v === 'codex' ? v : null;
 }
@@ -2536,7 +2537,8 @@ async function generateAiSceneImage(
   };
   
   // Decide best engine according to user explicit preference
-  const selectedEngine = settings.imageEngine || 'pollinations';
+  // Codex 이미지는 개인 구독 전용이라 구매자판에서는 기본 엔진으로 돌린다
+  const selectedEngine = settings.imageEngine === 'codex' && IS_BUYER_EDITION ? 'pollinations' : (settings.imageEngine || 'pollinations');
   console.log(`[AI Visual Scene ${sceneIdx + 1}] Topic: "${prompt}" | Selected Engine: "${selectedEngine}" | Scene: "${visualContext}" | Template: ${templateId}`);
 
   // Provider 0: Google Gemini (Imagen 3 / Flash Image)
@@ -2647,73 +2649,6 @@ async function generateAiSceneImage(
       }
     } catch (dalleErr) {
       console.warn('[OpenAI DALL-E 3 Exception]:', dalleErr);
-    }
-    return null;
-  };
-
-  // Provider 2: Fal.ai FLUX (Schnell / Dev)
-  const tryFal = async (): Promise<Buffer | null> => {
-    if (!settings.falApiKey) return null;
-    try {
-      console.log(`[Fal.ai FLUX] Generating scene ${sceneIdx + 1}...`);
-      const falSeed = Math.floor(Math.random() * 90000000) + (Date.now() % 10000000) + sceneIdx * 104729;
-      const res = await fetch('https://fal.run/fal-ai/flux/schnell', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Key ${settings.falApiKey}`,
-        },
-        body: JSON.stringify({
-          prompt: englishVisualPrompt,
-          image_size: 'portrait_16_9',
-          num_inference_steps: 4,
-          seed: falSeed,
-        }),
-      });
-      if (res.ok) {
-        const data: any = await res.json();
-        const imgUrl = data.images?.[0]?.url;
-        if (imgUrl) {
-          const buf = await fetchImageBufferWithRetry(imgUrl);
-          if (buf) {
-            const verified = verifyAndRecordBuffer(buf);
-            if (verified) {
-              console.log(`[Fal.ai FLUX] Scene ${sceneIdx + 1} generated successfully!`);
-              return verified;
-            }
-          }
-        }
-      }
-    } catch (falErr) {
-      console.warn('[Fal.ai Exception]:', falErr);
-    }
-    return null;
-  };
-
-  // Provider 3: Stability AI (Stable Diffusion 3 / Core)
-  const tryStability = async (): Promise<Buffer | null> => {
-    if (!settings.stabilityApiKey) return null;
-    try {
-      console.log(`[Stability AI] Generating scene ${sceneIdx + 1}...`);
-      const formData = new FormData();
-      formData.append('prompt', englishVisualPrompt);
-      formData.append('aspect_ratio', '9:16');
-      formData.append('output_format', 'jpeg');
-      const res = await fetch('https://api.stability.ai/v2beta/stable-image/generate/core', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${settings.stabilityApiKey}`,
-          Accept: 'image/*',
-        },
-        body: formData,
-      });
-      if (res.ok) {
-        const arrayBuf = await res.arrayBuffer();
-        const verified = verifyAndRecordBuffer(Buffer.from(arrayBuf));
-        if (verified) return verified;
-      }
-    } catch (stabErr) {
-      console.warn('[Stability AI Exception]:', stabErr);
     }
     return null;
   };
@@ -2846,18 +2781,14 @@ async function generateAiSceneImage(
   } else if (selectedEngine === 'gemini') {
     executionPlan = [tryGemini, tryPollinationsFlux, tryOpenAi, tryPexels, tryPollinationsTurbo];
   } else if (selectedEngine === 'openai') {
-    executionPlan = [tryOpenAi, tryFal, tryPollinationsFlux, tryPexels, tryPollinationsTurbo];
-  } else if (selectedEngine === 'fal') {
-    executionPlan = [tryFal, tryPollinationsFlux, tryOpenAi, tryPexels, tryPollinationsTurbo];
-  } else if (selectedEngine === 'stability') {
-    executionPlan = [tryStability, tryFal, tryPollinationsFlux, tryPexels, tryPollinationsTurbo];
+    executionPlan = [tryOpenAi, tryPollinationsFlux, tryPexels, tryPollinationsTurbo];
   } else if (selectedEngine === 'pexels') {
     executionPlan = [tryPexels, tryPixabay, tryPollinationsFlux, tryPollinationsTurbo];
   } else if (selectedEngine === 'pixabay') {
     executionPlan = [tryPixabay, tryPexels, tryPollinationsFlux, tryPollinationsTurbo];
   } else {
     // Default 'pollinations'
-    executionPlan = [tryPollinationsFlux, tryFal, tryStability, tryPexels, tryPixabay, tryPollinationsTurbo];
+    executionPlan = [tryPollinationsFlux, tryPexels, tryPixabay, tryPollinationsTurbo];
   }
 
   for (const provider of executionPlan) {
@@ -4033,7 +3964,7 @@ async function executeRenderPipeline(
 
     // ChatGPT \uAD6C\uB3C5(Codex) \uC774\uBBF8\uC9C0\uB294 \uC7A5\uBA74\uB2F9 \uC57D 1\uBD84\uC774\uB77C, \uC774\uBBF8\uC9C0\uB97C \uC4F8 \uC7A5\uBA74\uC744 \uBBF8\uB9AC \uBCD1\uB82C\uB85C \uC0DD\uC131\uD574 \uB454\uB2E4.
     // shortcut: \uC2A4\uD1A1 \uC601\uC0C1 \uAC80\uC0C9 \uC7A5\uBA74\uC740 \uACB0\uACFC\uB97C \uBBF8\uB9AC \uC54C \uC218 \uC5C6\uC5B4 \uC81C\uC678\uD55C\uB2E4(\uC601\uC0C1 \uC2E4\uD328 \uC2DC \uADF8 \uC7A5\uBA74\uB9CC \uC21C\uCC28 \uC0DD\uC131).
-    const codexPrefetch = settings.imageEngine === 'codex' && !params.enableStockVideo
+    const codexPrefetch = settings.imageEngine === 'codex' && !IS_BUYER_EDITION && !params.enableStockVideo
       ? prefetchCodexImages(Array.from({ length: sceneCount }, (_, s) => {
           const cs = customScenes?.[s];
           if (cs && (cs.mediaType === 'video' || cs.videoUrl)) return null;
@@ -5745,8 +5676,6 @@ ipcMain.handle('test-image-engine', async (_, { engine, apiKey, prompt }) => {
   if (apiKey) {
     if (engine === 'gemini') testSettings.geminiApiKey = apiKey;
     if (engine === 'openai') testSettings.openaiApiKey = apiKey;
-    if (engine === 'fal') testSettings.falApiKey = apiKey;
-    if (engine === 'stability') testSettings.stabilityApiKey = apiKey;
     if (engine === 'pexels') testSettings.pexelsApiKey = apiKey;
     if (engine === 'pixabay') testSettings.pixabayApiKey = apiKey;
   }

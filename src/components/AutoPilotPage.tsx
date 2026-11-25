@@ -367,7 +367,9 @@ export const AutoPilotPage: React.FC<AutoPilotPageProps> = ({ settings, onNaviga
             message: `"${res.topic}" 주제로 쇼츠 제작 및 발행이 완료되었습니다!`,
             videoUrl: res.videoUrl,
           });
-          await fetchConfig();
+          // 실행 상태(이력·다음 실행)만 반영해 실행 중에 입력한 저장 전 내용을 지우지 않는다
+          const loaded = await window.electronAPI.getAutoPilotConfig?.();
+          if (loaded) applyServerRunState(loaded);
         } else {
           setTriggerResult({
             success: false,

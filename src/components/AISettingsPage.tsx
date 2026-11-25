@@ -18,12 +18,10 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({
 }) => {
   const [geminiApiKey, setGeminiApiKey] = useState(settings.geminiApiKey || '');
   const [openaiApiKey, setOpenaiApiKey] = useState(settings.openaiApiKey || '');
-  const [falApiKey, setFalApiKey] = useState(settings.falApiKey || '');
-  const [stabilityApiKey, setStabilityApiKey] = useState(settings.stabilityApiKey || '');
   const [elevenlabsApiKey, setElevenlabsApiKey] = useState(settings.elevenlabsApiKey || '');
   const [pexelsApiKey, setPexelsApiKey] = useState(settings.pexelsApiKey || '');
   const [pixabayApiKey, setPixabayApiKey] = useState(settings.pixabayApiKey || '');
-  const [imageEngine, setImageEngine] = useState<'pollinations' | 'openai' | 'fal' | 'stability' | 'pexels' | 'pixabay' | 'gemini' | 'codex'>(
+  const [imageEngine, setImageEngine] = useState<'pollinations' | 'openai' | 'pexels' | 'pixabay' | 'gemini' | 'codex'>(
     settings.imageEngine || 'pollinations'
   );
   const [subscriptionLlm, setSubscriptionLlm] = useState<'off' | 'claude' | 'codex'>(settings.subscriptionLlm || 'off');
@@ -54,8 +52,6 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({
       ...settings,
       geminiApiKey: geminiApiKey.trim() || undefined,
       openaiApiKey: openaiApiKey.trim() || undefined,
-      falApiKey: falApiKey.trim() || undefined,
-      stabilityApiKey: stabilityApiKey.trim() || undefined,
       elevenlabsApiKey: elevenlabsApiKey.trim() || undefined,
       pexelsApiKey: pexelsApiKey.trim() || undefined,
       pixabayApiKey: pixabayApiKey.trim() || undefined,
@@ -152,8 +148,6 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({
       let keyToPass = '';
       if (imageEngine === 'gemini') keyToPass = geminiApiKey.trim();
       if (imageEngine === 'openai') keyToPass = openaiApiKey.trim();
-      if (imageEngine === 'fal') keyToPass = falApiKey.trim();
-      if (imageEngine === 'stability') keyToPass = stabilityApiKey.trim();
       if (imageEngine === 'pexels') keyToPass = pexelsApiKey.trim();
       if (imageEngine === 'pixabay') keyToPass = pixabayApiKey.trim();
 
@@ -178,8 +172,6 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({
   const registeredKeyCount = [
     geminiApiKey,
     openaiApiKey,
-    falApiKey,
-    stabilityApiKey,
     elevenlabsApiKey,
     pexelsApiKey,
     pixabayApiKey,
@@ -261,7 +253,8 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({
           </p>
         </div>
 
-        {/* Subscription CLI engine (personal use on this PC) */}
+        {/* Subscription CLI engine (personal use on this PC) — 구매자판에는 노출하지 않는다 */}
+        {!__BUYER_BUILD__ && (
         <div className="space-y-2 p-4 rounded-xl bg-violet-50 border border-violet-200">
           <div className="flex items-center gap-1.5 text-xs font-extrabold text-slate-800">
             <Sparkles className="w-3.5 h-3.5 text-violet-600" />
@@ -291,6 +284,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({
             이 PC에 로그인된 Claude Code(<code>claude</code>) 또는 Codex(<code>codex</code>) 명령을 사용합니다. 본인 PC에서 본인이 쓸 때만 사용하세요. 실패하면 아래 API 키 → 내장 대본 순으로 자동 전환됩니다.
           </p>
         </div>
+        )}
 
         {/* API Key Inputs Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
@@ -496,9 +490,7 @@ export const AISettingsPage: React.FC<AISettingsPageProps> = ({
             { id: 'pixabay', name: 'Pixabay 무료 미디어', desc: '풍부한 무료 스톡 비디오 & 사진 미디어' },
             { id: 'pollinations', name: 'Pollinations AI (무료)', desc: 'FLUX 기반 고화질 AI 생성 (키 불필요)' },
             { id: 'openai', name: 'OpenAI DALL-E 3', desc: 'OpenAI API 키를 이용한 프리미엄 AI 이미지' },
-            { id: 'fal', name: 'Fal.ai (Flux Pro)', desc: 'Fal API 키 필요 / 초고속 실시간 생성' },
-            { id: 'stability', name: 'Stability AI (SD3)', desc: 'Stability API 키 필요 / 정밀 이미지' },
-          ].map((eng) => {
+          ].filter((eng) => !(__BUYER_BUILD__ && eng.id === 'codex')).map((eng) => {
             const isSelected = imageEngine === eng.id;
             return (
               <div

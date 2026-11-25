@@ -175,7 +175,7 @@ export const VideoToShortsPage: React.FC<VideoToShortsPageProps> = ({
     setIsDragging(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const file = e.dataTransfer.files[0];
-      const p = (file as any).path || file.name;
+      const p = window.electronAPI?.getPathForFile(file);
       if (p) {
         setVideoPath(p);
         triggerAnalyze(p);

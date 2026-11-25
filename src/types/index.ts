@@ -103,8 +103,6 @@ export interface ShortsProject {
 export interface AppSettings {
   openaiApiKey?: string;
   geminiApiKey?: string;
-  falApiKey?: string;
-  stabilityApiKey?: string;
   elevenlabsApiKey?: string;
   elevenlabsVoiceId?: string;
   pexelsApiKey?: string;
@@ -118,7 +116,7 @@ export interface AppSettings {
   youtubeCommentMode?: 'custom' | 'ai_smart';
   /** 이 PC에 로그인된 구독 CLI(Claude Code / Codex)로 대본·장면 설명을 만든다. 본인 PC 개인 사용 전용. */
   subscriptionLlm?: 'off' | 'claude' | 'codex';
-  imageEngine?: 'pollinations' | 'openai' | 'fal' | 'stability' | 'pexels' | 'pixabay' | 'gemini' | 'codex';
+  imageEngine?: 'pollinations' | 'openai' | 'pexels' | 'pixabay' | 'gemini' | 'codex';
   videoEngine?: 'motion_gradient' | 'ai_image_motion' | 'stock_video';
   defaultVoiceId: string;
   defaultTemplateId: string;

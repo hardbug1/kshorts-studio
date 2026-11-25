@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Plus,
   Trash2,
@@ -165,29 +165,33 @@ export const SceneTimelineEditor: React.FC<SceneTimelineEditorProps> = ({
     handleSearchStock(initialQuery);
   };
 
+  // 매칭은 장면마다 몇 초씩 걸린다. 그 사이 사용자가 고친 문장·프롬프트를 덮어쓰지 않게 끝날 때 최신 장면에 영상 필드만 합친다.
+  const latestScenesRef = useRef(scenes);
+  latestScenesRef.current = scenes;
+
   // Auto-match all scenes with royalty-free videos
   const handleAutoMatchAllVideos = async () => {
     if (!window.electronAPI?.searchStockVideos) return;
     setIsAutoMatchingAll(true);
     try {
-      const updated = [...scenes];
-      for (let i = 0; i < updated.length; i++) {
-        const sc = updated[i];
+      const matched = new Map<number, Partial<ScriptScene>>();
+      const snapshot = [...scenes];
+      for (let i = 0; i < snapshot.length; i++) {
+        const sc = snapshot[i];
         const query = sc.visualPrompt || sc.text || title;
         const res = await window.electronAPI.searchStockVideos({ query });
         if (res.success && res.videos && res.videos.length > 0) {
           // Select an appropriate candidate based on index to avoid repeating the exact same video
           const video = res.videos[i % res.videos.length];
-          updated[i] = {
-            ...sc,
+          matched.set(sc.id, {
             mediaType: 'video',
             videoUrl: video.url,
             mediaPreviewUrl: video.previewUrl,
             videoSource: ((video as any).engine as any) || 'preset',
-          };
+          });
         }
       }
-      onChangeScenes(updated);
+      onChangeScenes(latestScenesRef.current.map((sc) => (matched.has(sc.id) ? { ...sc, ...matched.get(sc.id) } : sc)));
     } catch (err) {
       console.error('Auto-match all videos error:', err);
     } finally {

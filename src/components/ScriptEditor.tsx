@@ -170,26 +170,30 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({
         />
       )}
 
-      {/* Multilingual Global Localization Modal */}
-      <MultilingualModal
-        isOpen={isMultilingualModalOpen}
-        onClose={() => setIsMultilingualModalOpen(false)}
-        koreanTitle={title}
-        koreanScript={script}
-        onApplyScriptToEditor={(newTitle, newScript, newVoiceId) => {
-          setScript(newScript);
-          if (onChangeTitle && newTitle) onChangeTitle(newTitle);
-          if (onChangeVoiceId && newVoiceId) onChangeVoiceId(newVoiceId);
-        }}
-      />
+      {/* Multilingual Global Localization Modal — 열 때마다 새로 마운트해 이전 대본의 번역이 남지 않게 한다 */}
+      {isMultilingualModalOpen && (
+        <MultilingualModal
+          isOpen
+          onClose={() => setIsMultilingualModalOpen(false)}
+          koreanTitle={title}
+          koreanScript={script}
+          onApplyScriptToEditor={(newTitle, newScript, newVoiceId) => {
+            setScript(newScript);
+            if (onChangeTitle && newTitle) onChangeTitle(newTitle);
+            if (onChangeVoiceId && newVoiceId) onChangeVoiceId(newVoiceId);
+          }}
+        />
+      )}
 
-      {/* AI Pinned Comment Suggestions Modal */}
-      <PinnedCommentModal
-        isOpen={isPinnedCommentModalOpen}
-        onClose={() => setIsPinnedCommentModalOpen(false)}
-        topic={title}
-        script={script}
-      />
+      {/* AI Pinned Comment Suggestions Modal (같은 이유로 열 때만 마운트) */}
+      {isPinnedCommentModalOpen && (
+        <PinnedCommentModal
+          isOpen
+          onClose={() => setIsPinnedCommentModalOpen(false)}
+          topic={title}
+          script={script}
+        />
+      )}
     </div>
   );
 };

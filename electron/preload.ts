@@ -1,7 +1,10 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type { GenerateScriptRequest, RenderShortsRequest, ShortsProject, AppSettings, AutoPilotSchedule, AutoPilotStatusEvent } from '../src/types';
 
 export const electronAPI = {
+  // 끌어다 놓은 파일의 실제 경로 (Electron 32부터 File.path 가 없어졌다)
+  getPathForFile: (file: File): string => webUtils.getPathForFile(file),
+
   // AI Script Generation
   generateScript: (params: GenerateScriptRequest): Promise<string> => 
     ipcRenderer.invoke('generate-script', params),
