@@ -6480,6 +6480,9 @@ async function refreshGoogleAccessToken(clientId: string, clientSecret: string, 
     if (errText.includes('invalid_grant') || errText.includes('expired or revoked')) {
       throw new Error('Google OAuth Refresh Token이 만료되었습니다. [플랫폼 연동] 메뉴에서 Refresh Token을 재발급받아 등록해주세요.');
     }
+    if (errText.includes('invalid_client')) {
+      throw new Error('Google이 Client ID/Client Secret 조합을 거부했습니다(invalid_client). Google Cloud 콘솔 → 사용자 인증 정보에서 같은 OAuth 클라이언트의 ID와 Secret을 다시 복사하고, 그 둘로 Refresh Token도 새로 발급해 등록해주세요.');
+    }
     let detail = errText.slice(0, 200);
     try {
       const errJson = JSON.parse(errText);
