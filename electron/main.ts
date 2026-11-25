@@ -68,7 +68,8 @@ globalThis.fetch = ((input: Parameters<typeof fetch>[0], init?: RequestInit) =>
 
 let mainWindow: BrowserWindow | null = null;
 const isDev = process.env.NODE_ENV !== 'production' && !app.isPackaged;
-const isDevServerRequested = process.env.VITE_DEV === 'true' || process.env.DEV_MODE === 'true';
+// 설치판은 환경변수와 상관없이 개발 서버를 쓰지 않는다(5173 포트의 아무 페이지가 앱 권한으로 열리는 것을 막음)
+const isDevServerRequested = !app.isPackaged && (process.env.VITE_DEV === 'true' || process.env.DEV_MODE === 'true');
 const APP_ROOT_DIR = path.resolve(__dirname, '..');
 
 const USER_DATA_DIR = path.join(app.getPath('userData'), 'kshorts-data');
@@ -869,6 +870,27 @@ function buildScriptUserPrompt(prompt: string, effectiveTitle: string, durationS
   );
 }
 
+/** 음성 타이밍 정보가 없을 때: 문장을 글자 수 비율로 음성 길이에 나눠 자막을 만든다. */
+function buildProportionalVtt(script: string, durationSec: number): string {
+  const sentences = script.split(/(?<=[.!?。])\s+|\n+/).map((t) => t.trim()).filter(Boolean);
+  const total = sentences.reduce((n, t) => n + t.length, 0) || 1;
+  const ts = (sec: number) => {
+    const ms = Math.round(sec * 1000);
+    const h = Math.floor(ms / 3600000);
+    const m = Math.floor((ms % 3600000) / 60000);
+    const s = Math.floor((ms % 60000) / 1000);
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(ms % 1000).padStart(3, '0')}`;
+  };
+  let t = 0;
+  const cues = sentences.map((text, i) => {
+    const end = i === sentences.length - 1 ? durationSec : t + (durationSec * text.length) / total;
+    const cue = `${i + 1}\n${ts(t)} --> ${ts(end)}\n${text}\n`;
+    t = end;
+    return cue;
+  });
+  return `WEBVTT\n\n${cues.join('\n')}`;
+}
+
 async function callGeminiApiForScript(
   apiKey: string,
   prompt: string,
@@ -1607,9 +1629,8 @@ async function runElevenLabsTts(
       }
     }
     fs.writeFileSync(vttFilePath, vttContent, 'utf8');
-  } else {
-    fs.writeFileSync(vttFilePath, 'WEBVTT\n\n1\n00:00:00.000 --> 00:00:30.000\n' + text.slice(0, 40), 'utf8');
   }
+  // 글자 타이밍이 없으면 자막 파일을 쓰지 않는다. 렌더 단계가 실제 음성 길이로 문장별 자막을 만든다.
 }
 
 // ----------------------------------------------------
@@ -1927,7 +1948,7 @@ function reserveVideoKey(key: string, skipKeys?: Set<string>): boolean {
     if (keys.includes(key)) return false;
     keys.push(key);
     const trimmed = keys.length > 3000 ? keys.slice(-2000) : keys;
-    fs.writeFileSync(USED_VIDEOS_FILE, JSON.stringify({ keys: trimmed }, null, 2), 'utf8');
+    writeJsonAtomic(USED_VIDEOS_FILE, { keys: trimmed });
     return true;
   } catch (err) {
     console.warn('[Used Videos Record Error]:', err);
@@ -1941,7 +1962,7 @@ function releaseVideoKey(key: string): void {
   try {
     const keys = getUsedVideoKeys();
     const next = keys.filter((k) => k !== key);
-    if (next.length !== keys.length) fs.writeFileSync(USED_VIDEOS_FILE, JSON.stringify({ keys: next }, null, 2), 'utf8');
+    if (next.length !== keys.length) writeJsonAtomic(USED_VIDEOS_FILE, { keys: next });
   } catch (err) {
     console.warn('[Used Videos Release Error]:', err);
   }
@@ -3434,10 +3455,12 @@ function createWindow() {
 
   mainWindow.webContents.on('will-navigate', (event, url) => {
     const currentUrl = mainWindow?.webContents.getURL() || '';
-    if (url !== currentUrl && (url.startsWith('http:') || url.startsWith('https:')) && !url.includes('localhost:') && !url.includes('127.0.0.1:')) {
-      event.preventDefault();
-      shell.openExternal(url);
-    }
+    if (url === currentUrl) return;
+    // 개발 서버의 자체 새로고침만 허용. 그 밖의 이동(끌어다 놓은 file:, 외부 사이트)은 모두 막고 http(s)만 브라우저로 연다.
+    const isDevServerPage = usesDevServer && /^http:\/\/(127\.0\.0\.1|localhost):5173\//.test(url);
+    if (isDevServerPage) return;
+    event.preventDefault();
+    if (/^https?:\/\//i.test(url)) shell.openExternal(url);
   });
 
   // Ultra-Fast Cold Start: Load pre-built dist bundle directly if available,
@@ -3823,7 +3846,8 @@ async function executeRenderPipeline(
   };
 
   // 렌더가 어느 단계에서 실패해도 지울 임시 파일·폴더 (예전엔 ffmpeg 단계까지 가야만 지워져 실패할 때마다 쌓였다)
-  const renderTempPaths: string[] = [];
+  // 대본·자막 중간 파일은 렌더가 끝나면 다시 쓰이지 않으므로 함께 지운다(영상·음성·썸네일만 남김)
+  const renderTempPaths: string[] = [scriptTxtPath, vttFilePath, assFilePath];
   try {
     // 1. Script preparation
     sendProgress('generating_script', 15, '대본 검증 및 정리 중...');
@@ -3900,7 +3924,7 @@ async function executeRenderPipeline(
       vttContent = fs.readFileSync(vttFilePath, 'utf8');
     }
     if (!vttContent || !vttContent.includes('-->')) {
-      vttContent = `WEBVTT\n\n00:00:00.000 --> 00:00:${Math.floor(actualDuration).toString().padStart(2, '0')}.000\n${finalScript}`;
+      vttContent = buildProportionalVtt(finalScript, actualDuration);
       fs.writeFileSync(vttFilePath, vttContent, 'utf8');
     }
 
@@ -3976,7 +4000,10 @@ async function executeRenderPipeline(
         if (s === 0) {
           sceneDescriptions.push(title || prompt);
         } else {
-          sceneDescriptions.push(rawChunks[(s - 1) % (rawChunks.length || 1)] || prompt);
+          // 문장을 장면 수에 비율로 나눠 배정한다(앞에서부터 하나씩이면 장면이 모자랄 때 대본 뒷부분 그림이 없다)
+          const n = rawChunks.length;
+          const chunkIdx = sceneCount > 1 ? Math.min(n - 1, Math.floor(((s - 1) * n) / (sceneCount - 1))) : 0;
+          sceneDescriptions.push(rawChunks[chunkIdx] || prompt);
         }
       }
     }
@@ -4284,27 +4311,30 @@ async function executeRenderPipeline(
       filterChains.push(
         `[${bgmInputIdx}:a]volume=${bgmVolume.toFixed(2)}[bgm_base]`,
         `[bgm_base][${voiceInputIdx}:a]sidechaincompress=threshold=0.07:ratio=7:attack=80:release=350[ducked_bgm]`,
-        `[${voiceInputIdx}:a][ducked_bgm][${sfxInputIdx}:a]amix=inputs=3:duration=first:dropout_transition=2:normalize=0${audioFadeFilter}[aout]`
+        `[${voiceInputIdx}:a][ducked_bgm][${sfxInputIdx}:a]amix=inputs=3:duration=first:dropout_transition=2:normalize=0${audioFadeFilter}[amix]`
       );
     } else if (hasBgm) {
       filterChains.push(
         `[${bgmInputIdx}:a]volume=${bgmVolume.toFixed(2)}[bgm_base]`,
         `[bgm_base][${voiceInputIdx}:a]sidechaincompress=threshold=0.07:ratio=7:attack=80:release=350[ducked_bgm]`,
         // normalize=0: 기본값은 입력마다 소리를 절반으로 줄여, 효과음을 끄면 내레이션만 약 6dB 작아졌다.
-        `[${voiceInputIdx}:a][ducked_bgm]amix=inputs=2:duration=first:dropout_transition=2:normalize=0${audioFadeFilter}[aout]`
+        `[${voiceInputIdx}:a][ducked_bgm]amix=inputs=2:duration=first:dropout_transition=2:normalize=0${audioFadeFilter}[amix]`
       );
     } else if (hasSfx) {
       filterChains.push(
-        `[${voiceInputIdx}:a][${sfxInputIdx}:a]amix=inputs=2:duration=first:dropout_transition=2:normalize=0${audioFadeFilter}[aout]`
+        `[${voiceInputIdx}:a][${sfxInputIdx}:a]amix=inputs=2:duration=first:dropout_transition=2:normalize=0${audioFadeFilter}[amix]`
       );
     } else {
       filterChains.push(
-        `[${voiceInputIdx}:a]afade=t=out:st=${Math.max(0, actualDuration - 1.0).toFixed(2)}:d=1.0[aout]`
+        `[${voiceInputIdx}:a]afade=t=out:st=${Math.max(0, actualDuration - 1.0).toFixed(2)}:d=1.0[amix]`
       );
     }
 
+    // 유튜브는 -14 LUFS 기준으로 큰 소리만 줄이고 작은 소리는 키워 주지 않는다(예전 결과물 -19.6 LUFS로 작게 들림)
+    filterChains.push('[amix]loudnorm=I=-14:TP=-1.5:LRA=11,aformat=sample_rates=48000:channel_layouts=stereo[aout]');
     const filterComplex = filterChains.join(';');
-    const audioMapArgs = (hasBgm || hasSfx) ? ['-map', '[aout]'] : ['-map', `${voiceInputIdx}:a`];
+    // 예전엔 배경음·효과음이 모두 꺼지면 [aout]을 만들고도 연결하지 않아 ffmpeg가 실패하고 대체 영상이 나왔다
+    const audioMapArgs = ['-map', '[aout]'];
 
     const { encoder, extraArgs } = await getAvailableH264Encoder();
     const encoderArgs = ['-c:v', encoder || 'libx264', ...(extraArgs || '').split(/\s+/).filter(Boolean)];
@@ -4364,6 +4394,7 @@ async function executeRenderPipeline(
           status: 'done' as const,
           progressPercent: 100,
           statusMessage: isDegradedRender ? DEGRADED_MSG : '렌더링 완료',
+          degraded: isDegradedRender,
           videoPath: videoFilePath,
           videoUrl: `file://${videoFilePath}`,
           thumbnailPath: hasThumbnail ? thumbnailFilePath : undefined,
@@ -4438,8 +4469,16 @@ ipcMain.handle('save-project', async (_, project: ShortsProject) => {
   return true;
 });
 ipcMain.handle('delete-project', async (_, projectId: string) => {
-  const projects = getStoredProjects().filter((p) => p.id !== projectId);
-  saveStoredProjects(projects);
+  const all = getStoredProjects();
+  const target = all.find((p) => p.id === projectId);
+  saveStoredProjects(all.filter((p) => p.id !== projectId));
+  // 목록에서만 빼면 영상·음성·썸네일이 출력 폴더에 영원히 남는다. 이 프로젝트가 기록한 파일만 지운다.
+  if (target) {
+    const files = [target.videoPath, target.audioPath, target.thumbnailPath].filter((f): f is string => typeof f === 'string' && f.length > 0);
+    for (const f of files) {
+      if (path.basename(f).startsWith(String(projectId))) fs.rmSync(f, { force: true });
+    }
+  }
   return true;
 });
 
@@ -4557,6 +4596,20 @@ async function generateSmartCommentText(title: string, description: string, apiK
 // ----------------------------------------------------
 // Affiliate Link Generator
 // ----------------------------------------------------
+/** YouTube 설명 한도는 글자가 아니라 UTF-8 5000바이트(한글 한 글자 = 3바이트)다. 글자 중간에서 자르지 않는다. */
+function truncateUtf8Bytes(text: string, maxBytes: number): string {
+  if (Buffer.byteLength(text, 'utf8') <= maxBytes) return text;
+  let out = '';
+  let bytes = 0;
+  for (const ch of text) {
+    const b = Buffer.byteLength(ch, 'utf8');
+    if (bytes + b > maxBytes) break;
+    out += ch;
+    bytes += b;
+  }
+  return out;
+}
+
 function formatAffiliateLinksBlock(title: string, description: string, settings: AppSettings): string {
   const links = settings.affiliateLinks || [];
   if (links.length === 0 && !settings.naverBlogLink) return '';
@@ -4630,7 +4683,8 @@ async function executeUploadToYoutubeCore(params: {
     // 0. Generate AI Hooking Title, SEO Description, and 5+ Viral Tags
     console.log('[YouTube Upload] Generating AI Hooking Metadata...');
     const aiMeta = await generateYouTubeHookingMetadata(originalTitle, originalDesc, geminiApiKey);
-    const finalTitle = aiMeta.title.slice(0, 95);
+    // YouTube API는 제목·설명에 < > 가 있으면 400으로 거부한다
+    const finalTitle = aiMeta.title.replace(/[<>]/g, '').slice(0, 95);
 
     // Build Rich Description with Affiliate Links
     // (고정 시각 가짜 챕터는 영상 내용과 무관하고 쇼츠엔 표시도 안 돼 제거)
@@ -4645,7 +4699,7 @@ async function executeUploadToYoutubeCore(params: {
     }
 
     descParts.push('', aiMeta.tags.map((t) => `#${t.replace(/^#/, '')}`).join(' '));
-    const finalDescription = descParts.join('\n');
+    const finalDescription = truncateUtf8Bytes(descParts.join('\n').replace(/[<>]/g, ''), 5000);
     const finalTags = aiMeta.tags;
 
     // 0. Check internet connectivity before initiating upload
@@ -6896,6 +6950,8 @@ async function executeAutoPilotJob(forceNow = false): Promise<{ success: boolean
         if (uploadRes.success && uploadRes.videoUrl) {
           videoUrl = uploadRes.videoUrl;
           uploadStatus = 'uploaded';
+          const publishedAt = new Date().toISOString();
+          saveStoredProjects(getStoredProjects().map((p) => (p.id === projectId ? { ...p, publishedAt } : p)));
         } else {
           uploadStatus = 'failed';
           uploadErrorMsg = uploadRes.error || '알 수 없는 업로드 오류';
@@ -8091,14 +8147,19 @@ async function publishScheduledItem(item: ScheduledShortsItem): Promise<{ item: 
   updateScheduledItem(item.id, { status: 'publishing' });
   let uploadRes: any;
   let error = '';
+  const project = getStoredProjects().find((p) => p.id === item.projectId);
   if (!item.videoPath || !fs.existsSync(item.videoPath)) {
     error = '업로드할 영상 파일을 찾을 수 없습니다.';
+  } else if (project?.degraded) {
+    // 장면 합성이 실패한 대체 영상(첫 장면 한 장)은 사람 확인 없이 공개하지 않는다
+    error = '장면 합성이 실패한 대체 영상이라 자동 발행하지 않았습니다. 다시 렌더한 뒤 예약해 주세요.';
   } else {
     try {
       uploadRes = await executeUploadToYoutubeCore({
         videoPath: item.videoPath,
         title: item.title,
-        description: `${item.description || item.title}\n\n#Shorts #쇼츠 #AI쇼츠`,
+        // 예약 항목엔 대본이 없어 AI 설명·태그가 제목만 보고 만들어졌다. 프로젝트 대본을 넘긴다.
+        description: `${item.description || project?.script || item.title}\n\n#Shorts #쇼츠 #AI쇼츠`,
         tags: item.tags || ['쇼츠', 'Shorts'],
         privacyStatus: item.youtubePrivacy || 'public',
       });
@@ -8111,8 +8172,10 @@ async function publishScheduledItem(item: ScheduledShortsItem): Promise<{ item: 
     console.warn(`[Scheduled Publish] "${item.title}" failed: ${error}`);
     return { item: updateScheduledItem(item.id, { status: 'failed', errorMessage: error }), uploadRes, error };
   }
+  const publishedAt = new Date().toISOString();
+  saveStoredProjects(getStoredProjects().map((p) => (p.id === item.projectId ? { ...p, isScheduled: false, publishedAt } : p)));
   return {
-    item: updateScheduledItem(item.id, { status: 'published', publishedAt: new Date().toISOString(), errorMessage: undefined }),
+    item: updateScheduledItem(item.id, { status: 'published', publishedAt, errorMessage: undefined }),
     uploadRes,
   };
 }
@@ -8131,11 +8194,6 @@ ipcMain.handle('publish-scheduled-now', async (_, scheduleId: string) => {
     if (result.error || !result.item) {
       return { success: false, item: result.item, error: `즉시 발행 실패: ${result.error || '예약 항목이 삭제되었습니다.'}` };
     }
-
-    const publishedAt = result.item.publishedAt;
-    saveStoredProjects(getStoredProjects().map((p) =>
-      p.id === item.projectId ? { ...p, isScheduled: false, publishedAt } : p
-    ));
 
     return { success: true, item: result.item, publishResults: { youtube: result.uploadRes } };
   } catch (err: any) {

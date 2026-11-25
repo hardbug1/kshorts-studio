@@ -95,6 +95,7 @@ export interface ShortsProject {
   scheduledPublishAt?: string; // ISO 8601 string for scheduled release
   isScheduled?: boolean;
   publishedAt?: string;
+  degraded?: boolean; // 장면 합성 실패로 첫 장면 한 장짜리 대체 영상이 됨
   createdAt: string;
   updatedAt: string;
 }

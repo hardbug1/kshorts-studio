@@ -515,6 +515,7 @@ export default function App() {
         newProject.statusMessage = result.degraded
           ? '⚠️ 장면 합성 실패로 첫 장면만 쓴 대체 영상입니다. 자동 업로드하지 않았습니다.'
           : '쇼츠 제작 완료!';
+        newProject.degraded = Boolean(result.degraded);
         newProject.videoPath = result.videoPath;
         newProject.videoUrl = `file://${result.videoPath}`;
         newProject.thumbnailPath = result.thumbnailPath;
@@ -541,6 +542,10 @@ export default function App() {
             .then((upRes) => {
               if (upRes.success && upRes.videoUrl) {
                 console.log('[Auto-Upload] Successfully uploaded to YouTube:', upRes.videoUrl);
+                // 올린 시각을 남겨야 자동 분배가 이 영상을 다시 예약하지 않는다
+                const published = { ...newProject, publishedAt: new Date().toISOString() };
+                window.electronAPI.saveProject(published).catch(console.error);
+                setProjects((prev) => prev.map((p) => (p.id === published.id ? published : p)));
               } else if (!upRes.success) {
                 console.warn('[Auto-Upload Warning]:', upRes.error);
                 alert(`⚠️ [유튜브 자동 업로드 실패]\n${upRes.error || '알 수 없는 오류'}\n\n[플랫폼 연동] 메뉴에서 구글 OAuth 토큰 상태를 확인해주세요.`);

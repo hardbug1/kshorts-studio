@@ -983,8 +983,9 @@ pendingAsyncTests.push((async () => {
   };
   const mod = { exports: {} };
   const settingsMock = () => ({ pexelsApiKey: pexelsOn ? 'k' : '' });
-  new Function('module', 'exports', 'fs', 'path', 'USED_VIDEOS_FILE', 'getStoredSettings', 'translateKoreanVisualKeywords', 'FREE_STOCK_VIDEOS_CATALOG', 'fetch', 'AbortSignal', 'URL', 'process', jsV)(
-    mod, mod.exports, fs, path, tmpFile, settingsMock, (q) => q, catalog, fakeFetch, AbortSignal, URL, process
+  new Function('module', 'exports', 'fs', 'path', 'USED_VIDEOS_FILE', 'getStoredSettings', 'translateKoreanVisualKeywords', 'FREE_STOCK_VIDEOS_CATALOG', 'fetch', 'AbortSignal', 'URL', 'process', 'writeJsonAtomic', jsV)(
+    mod, mod.exports, fs, path, tmpFile, settingsMock, (q) => q, catalog, fakeFetch, AbortSignal, URL, process,
+    (file, data) => { fs.writeFileSync(`${file}.tmp`, JSON.stringify(data)); fs.renameSync(`${file}.tmp`, file); }
   );
   const V = mod.exports;
 
@@ -1334,6 +1335,15 @@ console.log('\n--- 라이선스: 서버 장부 클라이언트 / 선차감·환�
   const sub = load(mainTsSource.slice(sIdx, mainTsSource.indexOf('\n}\n', mainTsSource.indexOf('function assText')) + 3), ['assText'], { process: { platform: 'darwin' } });
   const out = sub.assText('a{\\b1}b\\N\nc 🔥');
   assert(!/[{}\\\n]/.test(out) && !out.includes('🔥'), 'assText: 중괄호·역슬래시·줄바꿈·이모지(맥) 제거/치환');
+
+  // 4) 타이밍 없는 자막: 문장별로 나뉘고 60초가 넘어도 시각 형식이 맞고 마지막이 음성 끝과 같음
+  const vtt = load(cut('buildProportionalVtt'), ['buildProportionalVtt']).buildProportionalVtt('첫 문장입니다. 두 번째 문장이 조금 더 깁니다! 끝?', 85.5);
+  assert((vtt.match(/-->/g) || []).length === 3 && vtt.includes('--> 00:01:25.500') && !/:\d{2}:[6-9]\d\./.test(vtt), '자막 대체 경로: 문장 3개, 85.5초 끝, 초 단위 60 미만');
+
+  // 5) 유튜브 설명 5000바이트 자르기: 한글을 글자 중간에서 자르지 않음
+  const { truncateUtf8Bytes } = load(cut('truncateUtf8Bytes'), ['truncateUtf8Bytes'], { Buffer });
+  const cutDesc = truncateUtf8Bytes('가'.repeat(2000), 5000);
+  assert(Buffer.byteLength(cutDesc) <= 5000 && !cutDesc.includes('�') && truncateUtf8Bytes('abc', 5000) === 'abc', '설명 5000바이트 제한을 글자 단위로 자름');
 }
 
 function finish() {

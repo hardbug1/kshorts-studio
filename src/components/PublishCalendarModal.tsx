@@ -124,7 +124,8 @@ export const PublishCalendarModal: React.FC<PublishCalendarModalProps> = ({
   };
 
   // Completed projects available for scheduling
-  const completedProjects = projects.filter((p) => p.status === 'done');
+  // 이미 올렸거나 예약된 영상, 장면 합성이 실패한 대체 영상은 다시 예약하지 않는다(중복 업로드 방지)
+  const completedProjects = projects.filter((p) => p.status === 'done' && !p.publishedAt && !p.isScheduled && !p.degraded);
 
   // Execute Auto-Distribute
   const handleAutoDistribute = async () => {
