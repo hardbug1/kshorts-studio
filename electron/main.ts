@@ -5019,7 +5019,8 @@ function downloadFileWithProgress(
   });
 }
 
-const DEFAULT_UPDATE_REPO = 'lsszz2100/kshorts-releases';
+// 업데이트 배포처: 이 포크(hardbug1)의 GitHub Releases. 원작자 저장소에서 받으면 포크의 수정이 덮어써진다.
+const DEFAULT_UPDATE_REPO = 'hardbug1/kshorts-studio';
 let lastApiUpdateCheck = 0;
 
 /** 마지막 업데이트 확인에서 메인 프로세스가 GitHub에서 직접 받은 설치 파일 정보 */

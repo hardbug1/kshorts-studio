@@ -1,4 +1,4 @@
-// 새 버전을 공개 업데이트 저장소(lsszz2100/kshorts-releases)에 올린다.
+// 새 버전을 공개 업데이트 저장소(hardbug1/kshorts-studio 의 Releases)에 올린다.
 // 구매자 프로그램은 3분마다(그리고 창을 다시 볼 때) update.json 을 확인해 새 버전 알림 → 설치 파일을 받아
 // SHA-256 을 확인한 뒤 설치한다. 소스 코드는 올리지 않는다(소스는 비공개 저장소).
 // 사용법: npm run release   (= dist:win 빌드 후 이 스크립트)
@@ -9,7 +9,7 @@ import crypto from 'crypto';
 import { execFileSync } from 'child_process';
 import { fileURLToPath } from 'url';
 
-const REPO = 'lsszz2100/kshorts-releases';
+const REPO = 'hardbug1/kshorts-studio';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const version = pkg.version;
