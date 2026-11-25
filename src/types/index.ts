@@ -522,7 +522,7 @@ export const DEFAULT_PRESETS: ShortsPreset[] = [
     name: '커뮤니티 & 레전드 썰',
     description: '말풍선 스타일 자막과 빠른 템포의 재치있는 썰풀이 전용',
     icon: '💬',
-    voiceId: 'ko-KR-HyunsuNeural',
+    voiceId: 'ko-KR-GookMinNeural',
     templateId: 'anime',
     fontId: 'GmarketSansBold',
     subtitleStyleId: 'ssul_talk',

@@ -1343,6 +1343,12 @@ console.log('\n--- 라이선스: 서버 장부 클라이언트 / 선차감·환�
   const cutDesc = truncateUtf8Bytes('가'.repeat(2000), 5000);
   assert(Buffer.byteLength(cutDesc) <= 5000 && !cutDesc.includes('�') && truncateUtf8Bytes('abc', 5000) === 'abc', '설명 5000바이트 제한을 글자 단위로 자름');
 
+  // 7) 화면의 모든 Edge 성우는 Microsoft에 실제로 있는 목소리(선희·인준)로 연결돼야 한다(없는 이름은 음성 생성 실패)
+  const profileVoices = Object.fromEntries([...mainTsSource.matchAll(/^  '([^']+)': \{ voice: '([^']+)'/gm)].map((m) => [m[1], m[2]]));
+  const uiVoiceIds = [...fs.readFileSync(path.join(__dirname, '..', 'src', 'components', 'VoiceSelector.tsx'), 'utf8').matchAll(/id: '(ko-KR-[A-Za-z]+Neural)'/g)].map((m) => m[1]);
+  const badVoices = uiVoiceIds.filter((id) => !['ko-KR-SunHiNeural', 'ko-KR-InJoonNeural'].includes(profileVoices[id.toLowerCase()]));
+  assert(uiVoiceIds.length >= 6 && badVoices.length === 0, `성우 목록 전부 실제 Edge 목소리로 연결됨 ${badVoices.join(',')}`);
+
   // 6) 옵션 추천: 허용 목록 밖 값은 거르고, 응답이 깨지면 null, 규칙 추천은 주제를 알아본다
   const recSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'optionRecommender.ts'), 'utf8');
   const R = load(recSrc.replace(/^export /gm, ''), ['buildRecommendPrompt', 'parseRecommendation', 'ruleBasedRecommendation']);

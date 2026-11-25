@@ -1233,6 +1233,13 @@ type VoiceProfile = {
 };
 
 const VOICE_PROFILES: Record<string, VoiceProfile> = {
+  // Edge TTS 의 실제 한국어 목소리는 선희·인준·현수 3개뿐이다. 국민·서현은 없는 이름이라 그대로 넘기면 음성 생성이 실패했다(렌더 포함).
+  // 현수(Multilingual)는 속도 조절 시 대부분 실패해서 쓰지 않는다(예전에 저장된 현수 설정은 국민과 같은 인준 변형으로 돌린다).
+  // 국민 (친근한 구어체 남성): 인준을 조금 빠르고 밝게
+  'ko-kr-gookminneural': { voice: 'ko-KR-InJoonNeural', rate: '+8%', pitch: '+3Hz' },
+  // 서현 (부드러운 감성 여성): 선희를 조금 느리고 낮게
+  'ko-kr-seohyeonneural': { voice: 'ko-KR-SunHiNeural', rate: '-3%', pitch: '-3Hz' },
+
   // 지민 (감성적/상냥한 하이톤 여성)
   'ko-kr-jiminneural': { voice: 'ko-KR-SunHiNeural', rate: '+1%', pitch: '+4Hz' },
   'voice-edge-jimin': { voice: 'ko-KR-SunHiNeural', rate: '+1%', pitch: '+4Hz' },
@@ -1252,11 +1259,11 @@ const VOICE_PROFILES: Record<string, VoiceProfile> = {
   '유진': { voice: 'ko-KR-SunHiNeural', rate: '+8%', pitch: '+6Hz' },
 
   // 현수 (트렌디 청년)
-  'ko-kr-hyunsuneural': { voice: 'ko-KR-HyunsuMultilingualNeural', rate: '+5%', pitch: '+1Hz' },
-  'ko-kr-hyunsumultilingualneural': { voice: 'ko-KR-HyunsuMultilingualNeural', rate: '+5%', pitch: '+1Hz' },
-  'voice-edge-hyunsu': { voice: 'ko-KR-HyunsuMultilingualNeural', rate: '+5%', pitch: '+1Hz' },
-  'hyunsu': { voice: 'ko-KR-HyunsuMultilingualNeural', rate: '+5%', pitch: '+1Hz' },
-  '현수': { voice: 'ko-KR-HyunsuMultilingualNeural', rate: '+5%', pitch: '+1Hz' },
+  'ko-kr-hyunsuneural': { voice: 'ko-KR-InJoonNeural', rate: '+8%', pitch: '+3Hz' },
+  'ko-kr-hyunsumultilingualneural': { voice: 'ko-KR-InJoonNeural', rate: '+8%', pitch: '+3Hz' },
+  'voice-edge-hyunsu': { voice: 'ko-KR-InJoonNeural', rate: '+8%', pitch: '+3Hz' },
+  'hyunsu': { voice: 'ko-KR-InJoonNeural', rate: '+8%', pitch: '+3Hz' },
+  '현수': { voice: 'ko-KR-InJoonNeural', rate: '+8%', pitch: '+3Hz' },
 
   // 선희 (표준 여성)
   'ko-kr-sunhineural': { voice: 'ko-KR-SunHiNeural', rate: '+4%', pitch: '+0Hz' },
