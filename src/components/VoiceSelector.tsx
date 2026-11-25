@@ -1,5 +1,5 @@
-import React from 'react';
-import { Mic, Check, Zap } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Mic, Check, Zap, Play, Square, Loader2 } from 'lucide-react';
 import type { VoiceOption } from '../types';
 
 export const VOICES: VoiceOption[] = [
@@ -83,6 +83,48 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
   voiceSpeed = 1.1,
   onChangeVoiceSpeed,
 }) => {
+  const [playingId, setPlayingId] = useState<string | null>(null);
+  const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState('');
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // 다른 화면으로 넘어가면 미리듣기를 멈춘다
+  useEffect(() => () => audioRef.current?.pause(), []);
+
+  const stopPreview = () => {
+    audioRef.current?.pause();
+    audioRef.current = null;
+    setPlayingId(null);
+  };
+
+  const handlePreview = async (e: React.MouseEvent, voiceId: string) => {
+    e.stopPropagation(); // 카드 선택과 별개로 듣기만 한다
+    if (playingId === voiceId) {
+      stopPreview();
+      return;
+    }
+    stopPreview();
+    setPreviewError('');
+    setLoadingId(voiceId);
+    try {
+      const res = await window.electronAPI?.previewVoice({ voiceId, speed: voiceSpeed });
+      if (!res?.success || !res.dataUrl) {
+        setPreviewError(res?.error || '미리듣기를 만들지 못했습니다.');
+        return;
+      }
+      const audio = new Audio(res.dataUrl);
+      audio.onended = () => setPlayingId((cur) => (cur === voiceId ? null : cur));
+      audioRef.current = audio;
+      setPlayingId(voiceId);
+      await audio.play();
+    } catch (err: any) {
+      setPreviewError(err?.message || String(err));
+      setPlayingId(null);
+    } finally {
+      setLoadingId(null);
+    }
+  };
+
   return (
     <div className="bg-white border border-slate-200/90 rounded-2xl p-6 space-y-4 shadow-sm">
       <div className="flex items-center justify-between">
@@ -127,6 +169,23 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
                   </p>
                 </div>
 
+                <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={(e) => handlePreview(e, voice.id)}
+                  disabled={loadingId !== null && loadingId !== voice.id}
+                  title={playingId === voice.id ? '정지' : '목소리 미리듣기'}
+                  aria-label={`${voice.name} 목소리 ${playingId === voice.id ? '정지' : '미리듣기'}`}
+                  className="w-7 h-7 rounded-full flex items-center justify-center border border-purple-200 bg-white text-purple-600 hover:bg-purple-600 hover:text-white transition-all disabled:opacity-40"
+                >
+                  {loadingId === voice.id ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : playingId === voice.id ? (
+                    <Square className="w-3 h-3 fill-current" />
+                  ) : (
+                    <Play className="w-3.5 h-3.5 fill-current" />
+                  )}
+                </button>
                 <div
                   className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 border transition-all text-xs font-bold ${
                     isSelected
@@ -136,11 +195,16 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
                 >
                   <Check className="w-3 h-3 stroke-[3]" />
                 </div>
+                </div>
               </div>
             </div>
           );
         })}
       </div>
+
+      {previewError && (
+        <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">{previewError}</p>
+      )}
 
       {onChangeVoiceSpeed && (
         <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">

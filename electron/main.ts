@@ -7502,6 +7502,34 @@ ipcMain.handle('search-stock-videos', async (_, params: { query: string; engine?
 // ----------------------------------------------------
 // 4. AI Pinned Comment & Interactive Vote Generator
 // ----------------------------------------------------
+// 성우 미리듣기: 렌더와 같은 TTS 엔진으로 예시 문장을 읽는다. 성우·배속별로 임시 폴더에 저장해 두고 다시 누르면 바로 재생한다.
+const VOICE_PREVIEW_TEXT = '안녕하세요! 이 목소리로 쇼츠 대본을 읽어 드릴게요. 끝까지 보시면 꿀팁이 있습니다.';
+ipcMain.handle('preview-voice', async (_, params: { voiceId: string; speed?: number }) => {
+  const voiceId = String(params?.voiceId || '');
+  if (!/^[A-Za-z0-9_-]{1,80}$/.test(voiceId)) return { success: false, error: '알 수 없는 성우입니다.' };
+  const speed = Math.min(2, Math.max(0.5, Number(params?.speed) || 1));
+  try {
+    const dir = path.join(os.tmpdir(), 'kshorts_voice_preview');
+    fs.mkdirSync(dir, { recursive: true });
+    const base = path.join(dir, `${voiceId}_${speed.toFixed(2)}`);
+    const mp3 = `${base}.mp3`;
+    if (!fs.existsSync(mp3) || fs.statSync(mp3).size === 0) {
+      if (voiceId.startsWith('elevenlabs_')) {
+        const key = getStoredSettings().elevenlabsApiKey;
+        if (!key) return { success: false, error: 'ElevenLabs 성우는 [AI 설정]에 ElevenLabs API 키를 넣어야 들을 수 있습니다.' };
+        await runElevenLabsTts(voiceId, VOICE_PREVIEW_TEXT, key, mp3, `${base}.vtt`);
+      } else {
+        fs.writeFileSync(`${base}.txt`, VOICE_PREVIEW_TEXT, 'utf8');
+        await runEdgeTts(voiceId, `${base}.txt`, mp3, `${base}.vtt`, speed);
+      }
+    }
+    return { success: true, dataUrl: `data:audio/mpeg;base64,${fs.readFileSync(mp3).toString('base64')}` };
+  } catch (err: any) {
+    console.warn('[Voice Preview] failed:', err);
+    return { success: false, error: err?.message || String(err) };
+  }
+});
+
 // 영상 옵션 추천: 프롬프트·검증은 화면(src/lib/optionRecommender.ts)이 하고, 여기서는 AI 호출만 한다.
 // 구독 AI → Gemini 순. 둘 다 없으면 실패를 돌려주고 화면이 키워드 규칙으로 대신한다.
 const RECOMMEND_SYSTEM_PROMPT = '당신은 한국 유튜브 쇼츠 제작 전문가입니다. 요청한 JSON 객체 하나만 출력합니다.';

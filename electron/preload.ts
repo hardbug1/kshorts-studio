@@ -2,6 +2,10 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type { GenerateScriptRequest, RenderShortsRequest, ShortsProject, AppSettings, AutoPilotSchedule, AutoPilotStatusEvent } from '../src/types';
 
 export const electronAPI = {
+  // 성우 미리듣기 (mp3 data URL)
+  previewVoice: (params: { voiceId: string; speed?: number }): Promise<{ success: boolean; dataUrl?: string; error?: string }> =>
+    ipcRenderer.invoke('preview-voice', params),
+
   // 영상 옵션 추천용 AI 호출 (응답 원문을 돌려주고 검증은 화면에서 한다)
   recommendRenderOptions: (params: { prompt: string }): Promise<{ success: boolean; text?: string; error?: string }> =>
     ipcRenderer.invoke('recommend-render-options', params),
