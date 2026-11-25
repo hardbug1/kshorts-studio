@@ -160,8 +160,7 @@ export interface AppSettings {
   naverAutoUpload?: boolean;
   naverDefaultTags?: string;
   naverBlogLink?: string;
-  // Monetization & Affiliate Links & SEO Chapters
-  enableAutoChapters?: boolean;
+  // Monetization & Affiliate Links
   enableAffiliateLinks?: boolean;
   affiliateLinks?: AffiliateLinkItem[];
   affiliateDisclaimer?: string;

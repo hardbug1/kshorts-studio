@@ -41,27 +41,8 @@ export const PublishPage: React.FC<PublishPageProps> = ({ settings, onSaveSettin
   const [activeTab, setActiveTab] = useState<PlatformTab>('youtube');
 
   // Monetization & Affiliate Links Settings
-  const [enableAutoChapters, setEnableAutoChapters] = useState<boolean>(settings.enableAutoChapters ?? true);
   const [enableAffiliateLinks, setEnableAffiliateLinks] = useState<boolean>(settings.enableAffiliateLinks ?? true);
-  const [affiliateLinks, setAffiliateLinks] = useState<AffiliateLinkItem[]>(
-    settings.affiliateLinks && settings.affiliateLinks.length > 0
-      ? settings.affiliateLinks
-      : [
-          {
-            id: 'aff_1',
-            keyword: '주방, 살림, 냄비, 청소',
-            label: '영상 속 초강력 만능 살림 청소포 최저가',
-            url: 'https://link.coupang.com/a/example1',
-            isDefault: true,
-          },
-          {
-            id: 'aff_2',
-            keyword: '신발, 옷, 패딩, 곰팡이',
-            label: '세탁소 사장님 추천 얼룩제거 펜',
-            url: 'https://link.coupang.com/a/example2',
-          },
-        ]
-  );
+  const [affiliateLinks, setAffiliateLinks] = useState<AffiliateLinkItem[]>(settings.affiliateLinks || []);
   const [affiliateDisclaimer, setAffiliateDisclaimer] = useState<string>(
     settings.affiliateDisclaimer || '※ 이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.'
   );
@@ -113,7 +94,7 @@ export const PublishPage: React.FC<PublishPageProps> = ({ settings, onSaveSettin
     settings.naverDefaultTags || ('#클립 #' + PORTAL_KO + '클립 #정보 #꿀팁 #일상')
   );
   const [naverBlogLink, setNaverBlogLink] = useState(
-    settings.naverBlogLink || 'https://blog.naver.com/'
+    settings.naverBlogLink || ''
   );
 
   // Telegram Settings
@@ -176,8 +157,7 @@ export const PublishPage: React.FC<PublishPageProps> = ({ settings, onSaveSettin
       telegramBotToken: telegramBotToken.trim() || undefined,
       telegramChatId: telegramChatId.trim() || undefined,
       enableTelegramNotify,
-      // Monetization & Chapters
-      enableAutoChapters,
+      // Monetization
       enableAffiliateLinks,
       affiliateLinks,
       affiliateDisclaimer: affiliateDisclaimer.trim() || undefined,
@@ -189,6 +169,10 @@ export const PublishPage: React.FC<PublishPageProps> = ({ settings, onSaveSettin
   const handleAddAffiliateLink = () => {
     if (!newLabel.trim() || !newUrl.trim()) {
       alert('상품/링크 명칭과 URL을 모두 입력해주세요.');
+      return;
+    }
+    if (!/^https?:\/\/\S+$/.test(newUrl.trim())) {
+      alert('링크는 http:// 또는 https:// 로 시작하는 주소여야 합니다.');
       return;
     }
     const newItem: AffiliateLinkItem = {
@@ -207,31 +191,6 @@ export const PublishPage: React.FC<PublishPageProps> = ({ settings, onSaveSettin
 
   const handleDeleteAffiliateLink = (id: string) => {
     setAffiliateLinks((prev) => prev.filter((item) => item.id !== id));
-  };
-
-  const handleApplyCoupangPreset = () => {
-    const presets: AffiliateLinkItem[] = [
-      {
-        id: `aff_cp_${Date.now()}_1`,
-        keyword: '주방, 살림, 청소, 냄비',
-        label: '✨ 영상 속 초강력 만능 살림 청소포 최저가',
-        url: 'https://link.coupang.com/a/example_clean',
-        isDefault: true,
-      },
-      {
-        id: `aff_cp_${Date.now()}_2`,
-        keyword: '신발, 운동화, 패딩, 옷',
-        label: '👟 세탁소 사장님 추천 프리미엄 백화점용 얼룩제거제',
-        url: 'https://link.coupang.com/a/example_stain',
-      },
-      {
-        id: `aff_cp_${Date.now()}_3`,
-        keyword: '생활, 욕실, 곰팡이, 배수구',
-        label: '🛁 1분 만에 뻥 뚫리는 배수구 캡슐 클리너',
-        url: 'https://link.coupang.com/a/example_drain',
-      },
-    ];
-    setAffiliateLinks((prev) => [...prev, ...presets]);
   };
 
   // Test YouTube
@@ -467,15 +426,16 @@ export const PublishPage: React.FC<PublishPageProps> = ({ settings, onSaveSettin
           </span>
         </button>
 
-        {/* [추후 활성화 예정] 수익화 제휴링크 & 챕터
+        {/* 수익화 제휴링크 */}
         <button
           onClick={() => setActiveTab('monetization')}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-white text-slate-400 border border-slate-200"
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold border transition-all ${
+            activeTab === 'monetization' ? 'bg-amber-500 text-white border-amber-500 shadow-md' : 'bg-white text-slate-600 border-slate-200 hover:border-amber-300'
+          }`}
         >
           <ShoppingBag className="w-4 h-4" />
-          <span>수익화 제휴링크 & 챕터 (예정)</span>
+          <span>수익화 제휴링크</span>
         </button>
-        */}
 
         {/* [추후 활성화 예정] 인스타그램 릴스
         <button
@@ -871,8 +831,7 @@ export const PublishPage: React.FC<PublishPageProps> = ({ settings, onSaveSettin
       {/* ========================================================================= */}
       {/* [다음에 순차 활성화 예정] 1.5. 수익화 제휴링크 & 챕터 (쇼츠 집중 모드) */}
       {/* ========================================================================= */}
-      {/* @ts-ignore - 추후 순차 활성화 예정 */}
-      {false && activeTab === 'monetization' && (
+      {activeTab === 'monetization' && (
         <div className="space-y-6 animate-in fade-in duration-200">
           {/* Top Overview & Master Switches */}
           <div className="p-5 rounded-2xl bg-gradient-to-r from-amber-50 via-orange-50 to-yellow-50 border border-amber-200 shadow-sm space-y-4">
@@ -894,35 +853,10 @@ export const PublishPage: React.FC<PublishPageProps> = ({ settings, onSaveSettin
                 </div>
               </div>
 
-              <button
-                onClick={handleApplyCoupangPreset}
-                className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-300 hover:text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 shrink-0"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                <span>살림/생활 꿀팁 추천 링크 3종 불러오기</span>
-              </button>
             </div>
 
-            {/* Two Master Switches */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
-              <div className="flex items-center justify-between p-3.5 rounded-xl bg-white border border-amber-200/80 shadow-xs">
-                <div className="space-y-0.5">
-                  <span className="text-xs font-bold text-slate-900">유튜브 SEO 자동 챕터(타임스탬프) 생성</span>
-                  <p className="text-[11px] text-slate-500">
-                    설명란에 0:00, 0:12 등 구간 타임라인을 자동 기재하여 알고리즘 탐색 탭 노출을 높입니다.
-                  </p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-3">
-                  <input
-                    type="checkbox"
-                    checked={enableAutoChapters}
-                    onChange={(e) => setEnableAutoChapters(e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
-                </label>
-              </div>
-
+            {/* Master Switch */}
+            <div className="grid grid-cols-1 gap-3 pt-2">
               <div className="flex items-center justify-between p-3.5 rounded-xl bg-white border border-amber-200/80 shadow-xs">
                 <div className="space-y-0.5">
                   <span className="text-xs font-bold text-slate-900">수익화 제휴 링크 자동 삽입</span>
@@ -961,7 +895,7 @@ export const PublishPage: React.FC<PublishPageProps> = ({ settings, onSaveSettin
 
             {affiliateLinks.length === 0 ? (
               <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200 text-slate-400 text-xs">
-                아직 등록된 수익화 링크가 없습니다. 상단의 [추천 링크 3종 불러오기]를 누르거나 아래에서 직접 추가해보세요!
+                아직 등록된 수익화 링크가 없습니다. 아래에서 쿠팡 파트너스 등 내 제휴 링크를 추가해보세요.
               </div>
             ) : (
               <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
@@ -1060,6 +994,19 @@ export const PublishPage: React.FC<PublishPageProps> = ({ settings, onSaveSettin
                 </button>
               </div>
             </div>
+          </div>
+
+          {/* Blog / Store Link */}
+          <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-2.5">
+            <h3 className="text-xs font-extrabold text-slate-900">연계 블로그 / 스마트스토어 링크 (선택)</h3>
+            <p className="text-[11px] text-slate-500">입력하면 제휴 링크 목록 아래에 함께 기재됩니다. 비워두면 넣지 않습니다.</p>
+            <input
+              type="url"
+              value={naverBlogLink}
+              onChange={(e) => setNaverBlogLink(e.target.value)}
+              placeholder="예: https://blog.naver.com/my_id"
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-amber-500 focus:bg-white"
+            />
           </div>
 
           {/* Legal Disclaimer Box */}

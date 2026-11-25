@@ -4555,7 +4555,7 @@ async function generateSmartCommentText(title: string, description: string, apiK
 }
 
 // ----------------------------------------------------
-// Smart YouTube Chapters & Affiliate Link Generator
+// Affiliate Link Generator
 // ----------------------------------------------------
 function formatAffiliateLinksBlock(title: string, description: string, settings: AppSettings): string {
   const links = settings.affiliateLinks || [];
