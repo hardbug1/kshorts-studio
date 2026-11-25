@@ -12,10 +12,10 @@ import {
   type RecommendedOptions,
 } from '../lib/optionRecommender';
 
-// ElevenLabs 성우는 별도 키가 있어야 해서 추천 후보에서 뺀다
+// ElevenLabs·Gemini 성우는 별도 키가 있어야 해서 추천 후보에서 뺀다 (Edge 성우만)
 const OPTION_LISTS: OptionLists = {
   templates: TEMPLATES.map((t) => ({ id: t.id, name: t.name })),
-  voices: VOICES.filter((v) => !v.id.startsWith('elevenlabs_')).map((v) => ({ id: v.id, name: v.name })),
+  voices: VOICES.filter((v) => (v.provider || 'edge-tts') === 'edge-tts').map((v) => ({ id: v.id, name: v.name })),
   titleStyles: TITLE_STYLES.map((t) => ({ id: t.id, name: t.name })),
   subtitleStyles: SUBTITLE_STYLES.map((s) => ({ id: s.id, name: s.name })),
   bgmMoods: BGM_TRACKS.map((b) => ({ id: b.id, name: b.name })),

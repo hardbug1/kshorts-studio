@@ -6,7 +6,7 @@ export interface VoiceOption {
   gender: 'female' | 'male';
   tag: string;
   description: string;
-  provider?: 'edge-tts' | 'elevenlabs';
+  provider?: 'edge-tts' | 'elevenlabs' | 'gemini';
 }
 
 export interface TemplateOption {

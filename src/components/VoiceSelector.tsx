@@ -68,6 +68,11 @@ export const VOICES: VoiceOption[] = [
     description: '헐리우드 트레일러급 깊은 울림과 드라마틱한 몰입감',
     provider: 'elevenlabs',
   },
+  // Gemini TTS: [AI 설정]의 Gemini API 키로 동작. 자막은 문장 길이 비례.
+  { id: 'gemini_Kore', name: '코레 Kore (여성)', gender: 'female', tag: '✨ Gemini AI', description: '단단하고 또렷한 톤, 정보·꿀팁 전달에 적합', provider: 'gemini' },
+  { id: 'gemini_Leda', name: '레다 Leda (여성)', gender: 'female', tag: '✨ Gemini AI', description: '젊고 발랄한 톤, 썰·일상 브이로그에 적합', provider: 'gemini' },
+  { id: 'gemini_Charon', name: '카론 Charon (남성)', gender: 'male', tag: '✨ Gemini AI', description: '차분한 설명형 톤, 지식·다큐에 적합', provider: 'gemini' },
+  { id: 'gemini_Puck', name: '퍽 Puck (남성)', gender: 'male', tag: '✨ Gemini AI', description: '밝고 경쾌한 톤, 예능·리액션에 적합', provider: 'gemini' },
 ];
 
 interface VoiceSelectorProps {
@@ -157,6 +162,8 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                       voice.provider === 'elevenlabs'
                         ? 'bg-amber-100 text-amber-800 border border-amber-300 shadow-xs'
+                        : voice.provider === 'gemini'
+                        ? 'bg-violet-100 text-violet-800 border border-violet-300 shadow-xs'
                         : voice.gender === 'female'
                         ? 'bg-pink-100 text-pink-700 border border-pink-200'
                         : 'bg-blue-100 text-blue-700 border border-blue-200'

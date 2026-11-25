@@ -1642,6 +1642,62 @@ async function runElevenLabsTts(
 }
 
 // ----------------------------------------------------
+// Gemini TTS (Interactions API). 타이밍을 주지 않아 자막은 렌더 단계가 문장 길이 비례로 만든다.
+// ----------------------------------------------------
+const GEMINI_TTS_MODELS = ['gemini-3.8-flash-tts', 'gemini-3.8-flash-lite-tts'];
+const GEMINI_TTS_STYLE = '한국어 유튜브 쇼츠 나레이터처럼 또렷하고 생동감 있게';
+const GEMINI_TTS_TIMEOUT_MS = 120_000;
+
+async function requestGeminiTtsWav(model: string, voiceName: string, text: string, apiKey: string): Promise<Buffer> {
+  const res = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey.trim() },
+    body: JSON.stringify({
+      model,
+      input: [{ type: 'user_input', content: [{ type: 'text', text, annotations: [{ type: 'speech_metadata', style: GEMINI_TTS_STYLE }] }] }],
+      response_format: { type: 'audio' },
+      generation_config: { speech_config: [{ voice: voiceName }] },
+    }),
+    signal: AbortSignal.timeout(GEMINI_TTS_TIMEOUT_MS),
+  });
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new Error(`Gemini TTS ${model} (${res.status}): ${errText.slice(0, 300)}`);
+  }
+  const data: any = await res.json();
+  const parts: any[] = (data?.steps || []).flatMap((s: any) => s?.content || []);
+  const b64 = parts.map((p) => p?.data).filter((d) => typeof d === 'string' && d).join('');
+  if (!b64) throw new Error(`Gemini TTS ${model}: 응답에 오디오가 없습니다.`);
+  return Buffer.from(b64, 'base64');
+}
+
+/** voiceId 예: gemini_Kore. WAV 를 받아 배속을 적용해 mp3 로 저장한다. 1순위 모델이 실패하면 lite 모델로 한 번 더. */
+async function runGeminiTts(voiceId: string, text: string, apiKey: string, audioFilePath: string, speed = 1): Promise<void> {
+  const voiceName = voiceId.replace(/^gemini_/, '');
+  if (!/^[A-Za-z]{2,30}$/.test(voiceName)) throw new Error(`알 수 없는 Gemini 성우: ${voiceId}`);
+  let wav: Buffer | null = null;
+  let lastErr: unknown = null;
+  for (const model of GEMINI_TTS_MODELS) {
+    try {
+      wav = await requestGeminiTtsWav(model, voiceName, text.trim(), apiKey);
+      break;
+    } catch (err) {
+      lastErr = err;
+      console.warn('[Gemini TTS] model failed:', (err as any)?.message || err);
+    }
+  }
+  if (!wav) throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+  const wavPath = `${audioFilePath}.gemini.wav`;
+  fs.writeFileSync(wavPath, wav);
+  try {
+    const tempo = Math.min(2, Math.max(0.5, Number(speed) || 1));
+    await runFfTool('ffmpeg', ['-y', '-i', wavPath, '-af', `atempo=${tempo.toFixed(2)}`, '-ar', '48000', '-ac', '2', '-b:a', '192k', audioFilePath]);
+  } finally {
+    fs.rmSync(wavPath, { force: true });
+  }
+}
+
+// ----------------------------------------------------
 // Scene-by-Scene Timeline Splitter & Visual Prompt Builder
 // ----------------------------------------------------
 function splitScriptIntoDefaultScenes(script: string, title?: string): any[] {
@@ -3829,7 +3885,18 @@ async function executeRenderPipeline(
     const effectiveVoiceSpeed = params.voiceSpeed || settings.defaultVoiceSpeed || 1.0;
     const effectiveSubtitleMotionType = params.subtitleMotionType || settings.defaultSubtitleMotionType || 'bounce';
 
-    if (isElevenVoice && settings.elevenlabsApiKey) {
+    const geminiTtsKey = settings.geminiApiKey || process.env.GEMINI_API_KEY;
+    if (voiceId.startsWith('gemini_')) {
+      sendProgress('generating_audio', 35, 'Gemini AI 성우 목소리 합성 중...');
+      try {
+        if (!geminiTtsKey) throw new Error('Gemini API 키가 없습니다. [AI 설정]에 넣어 주세요.');
+        await runGeminiTts(voiceId, finalScript, geminiTtsKey, audioFilePath, effectiveVoiceSpeed);
+      } catch (geminiErr: any) {
+        console.warn('[Gemini TTS Failed, Falling back to Edge-TTS]:', geminiErr?.message || geminiErr);
+        sendProgress('generating_audio', 38, `Gemini 성우 실패(${geminiErr?.message || geminiErr}) → 기본 성우로 전환 중...`);
+        await runEdgeTts(settings.defaultVoiceId || 'ko-KR-SunHiNeural', scriptTxtPath, audioFilePath, vttFilePath, effectiveVoiceSpeed, (m) => sendProgress('generating_audio', 36, m));
+      }
+    } else if (isElevenVoice && settings.elevenlabsApiKey) {
       sendProgress('generating_audio', 35, 'ElevenLabs 감정형 AI 성우 목소리 합성 중...');
       try {
         await runElevenLabsTts(voiceId, finalScript, settings.elevenlabsApiKey, audioFilePath, vttFilePath);
@@ -7525,6 +7592,10 @@ ipcMain.handle('preview-voice', async (_, params: { voiceId: string; speed?: num
         const key = getStoredSettings().elevenlabsApiKey;
         if (!key) return { success: false, error: 'ElevenLabs 성우는 [AI 설정]에 ElevenLabs API 키를 넣어야 들을 수 있습니다.' };
         await runElevenLabsTts(voiceId, VOICE_PREVIEW_TEXT, key, mp3, `${base}.vtt`);
+      } else if (voiceId.startsWith('gemini_')) {
+        const key = getStoredSettings().geminiApiKey || process.env.GEMINI_API_KEY;
+        if (!key) return { success: false, error: 'Gemini 성우는 [AI 설정]에 Gemini API 키를 넣어야 들을 수 있습니다.' };
+        await runGeminiTts(voiceId, VOICE_PREVIEW_TEXT, key, mp3, speed);
       } else {
         fs.writeFileSync(`${base}.txt`, VOICE_PREVIEW_TEXT, 'utf8');
         await runEdgeTts(voiceId, `${base}.txt`, mp3, `${base}.vtt`, speed);

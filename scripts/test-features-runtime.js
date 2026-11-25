@@ -1349,6 +1349,12 @@ console.log('\n--- 라이선스: 서버 장부 클라이언트 / 선차감·환�
   const badVoices = uiVoiceIds.filter((id) => !['ko-KR-SunHiNeural', 'ko-KR-InJoonNeural'].includes(profileVoices[id.toLowerCase()]));
   assert(uiVoiceIds.length >= 6 && badVoices.length === 0, `성우 목록 전부 실제 Edge 목소리로 연결됨 ${badVoices.join(',')}`);
 
+  // 7-2) 화면의 Gemini 성우 이름은 공식 30개 목소리 중 하나여야 한다(오타면 API 실패 → 기본 성우로 바뀜)
+  const GEMINI_OFFICIAL = 'Zephyr Puck Charon Kore Fenrir Leda Orus Aoede Callirrhoe Autonoe Enceladus Iapetus Umbriel Algieba Despina Erinome Algenib Rasalgethi Laomedeia Achernar Alnilam Schedar Gacrux Pulcherrima Achird Zubenelgenubi Vindemiatrix Sadachbia Sadaltager Sulafat'.split(' ');
+  const uiGemini = [...fs.readFileSync(path.join(__dirname, '..', 'src', 'components', 'VoiceSelector.tsx'), 'utf8').matchAll(/id: 'gemini_([A-Za-z]+)'/g)].map((m) => m[1]);
+  assert(uiGemini.length >= 1 && uiGemini.every((n) => GEMINI_OFFICIAL.includes(n)), `Gemini 성우 이름이 공식 목록과 일치 ${uiGemini.join(',')}`);
+  assert(/voiceId\.startsWith\('gemini_'\)[\s\S]{0,400}runGeminiTts\(/.test(mainTsSource), '렌더가 gemini_ 성우를 Gemini TTS 로 보냄');
+
   // 6) 옵션 추천: 허용 목록 밖 값은 거르고, 응답이 깨지면 null, 규칙 추천은 주제를 알아본다
   const recSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'optionRecommender.ts'), 'utf8');
   const R = load(recSrc.replace(/^export /gm, ''), ['buildRecommendPrompt', 'parseRecommendation', 'ruleBasedRecommendation']);
