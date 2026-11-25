@@ -12,6 +12,7 @@ import { FontSelector, FONTS } from './components/FontSelector';
 import { SubtitleStyleSelector, SUBTITLE_STYLES, TITLE_STYLES } from './components/SubtitleStyleSelector';
 import { TemplateSelector, TEMPLATES } from './components/TemplateSelector';
 import { BgmSelector } from './components/BgmSelector';
+import { OptionRecommender } from './components/OptionRecommender';
 import { RenderProgress } from './components/RenderProgress';
 import { PresetBar } from './components/PresetBar';
 import { UpdateNotificationToast } from './components/UpdateNotificationToast';
@@ -115,6 +116,9 @@ export default function App() {
   const [bgmVolume, setBgmVolume] = useState<number>(0.22);
   const [enableBgm, setEnableBgm] = useState<boolean>(true);
   const [enableHookIntro, setEnableHookIntro] = useState<boolean>(true);
+  // 시작 배너 문구. 비어 있으면 렌더러 기본 문구를 쓴다.
+  const [hookTitleText, setHookTitleText] = useState('');
+  const [hookSubtitleText, setHookSubtitleText] = useState('');
   const [enablePopupSubtitles, setEnablePopupSubtitles] = useState<boolean>(true);
   const [enableEmojiStickers, setEnableEmojiStickers] = useState<boolean>(true);
   const [enableSfx, setEnableSfx] = useState<boolean>(true);
@@ -487,6 +491,8 @@ export default function App() {
           bgmVolume,
           enableBgm,
           enableHookIntro,
+          hookTitleText: hookTitleText.trim() || undefined,
+          hookSubtitleText: hookSubtitleText.trim() || undefined,
           enablePopupSubtitles,
           enableSfx,
           sfxVolume,
@@ -509,6 +515,7 @@ export default function App() {
           ? '⚠️ 장면 합성 실패로 첫 장면만 쓴 대체 영상입니다. 자동 업로드하지 않았습니다.'
           : '쇼츠 제작 완료!';
         newProject.degraded = Boolean(result.degraded);
+        if (result.script) newProject.script = result.script;
         newProject.videoPath = result.videoPath;
         newProject.videoUrl = `file://${result.videoPath}`;
         newProject.thumbnailPath = result.thumbnailPath;
@@ -812,6 +819,29 @@ export default function App() {
                   scenes={scenes}
                   onChangeScenes={setScenes}
                   onChangeVoiceId={setVoiceId}
+                />
+
+                {/* Step 2-2: AI 영상 옵션 추천 (아래 성우·스타일·화풍·배경음 설정을 채운다) */}
+                <OptionRecommender
+                  title={prompt}
+                  script={script}
+                  hookTitleText={hookTitleText}
+                  hookSubtitleText={hookSubtitleText}
+                  onChangeHook={(t, sub) => {
+                    setHookTitleText(t);
+                    setHookSubtitleText(sub);
+                  }}
+                  onApply={(rec) => {
+                    setTemplateId(rec.templateId);
+                    setVoiceId(rec.voiceId);
+                    setTitleStyleId(rec.titleStyleId as TitleStyleId);
+                    setSubtitleStyleId(rec.subtitleStyleId as SubtitleStyleId);
+                    setBgmMood(rec.bgmMood);
+                    setEnableBgm(rec.bgmMood !== 'none');
+                    setEnableHookIntro(true);
+                    setHookTitleText(rec.hookTitleText);
+                    setHookSubtitleText(rec.hookSubtitleText);
+                  }}
                 />
 
                 {/* Step 3: Korean Voice Selection */}

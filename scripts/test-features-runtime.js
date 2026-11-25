@@ -1342,6 +1342,23 @@ console.log('\n--- 라이선스: 서버 장부 클라이언트 / 선차감·환�
   const { truncateUtf8Bytes } = load(cut('truncateUtf8Bytes'), ['truncateUtf8Bytes'], { Buffer });
   const cutDesc = truncateUtf8Bytes('가'.repeat(2000), 5000);
   assert(Buffer.byteLength(cutDesc) <= 5000 && !cutDesc.includes('�') && truncateUtf8Bytes('abc', 5000) === 'abc', '설명 5000바이트 제한을 글자 단위로 자름');
+
+  // 6) 옵션 추천: 허용 목록 밖 값은 거르고, 응답이 깨지면 null, 규칙 추천은 주제를 알아본다
+  const recSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'optionRecommender.ts'), 'utf8');
+  const R = load(recSrc.replace(/^export /gm, ''), ['buildRecommendPrompt', 'parseRecommendation', 'ruleBasedRecommendation']);
+  const lists = {
+    templates: [{ id: 'basic', name: '기본' }, { id: 'k_documentary', name: '다큐' }],
+    voices: [{ id: 'ko-KR-SunHiNeural', name: '선희' }, { id: 'ko-KR-InJoonNeural', name: '인준' }],
+    titleStyles: [{ id: 'yellow_tape', name: '노랑' }, { id: 'quiz_card', name: '퀴즈' }],
+    subtitleStyles: [{ id: 'mrbeast', name: 'mb' }, { id: 'highlighter', name: '형광' }],
+    bgmMoods: [{ id: 'auto', name: '자동' }, { id: 'bgm_lofi', name: '로파이' }],
+  };
+  const fb = R.ruleBasedRecommendation('고3 정시 공부법', '', lists);
+  assert(fb.templateId === 'k_documentary' && fb.titleStyleId === 'quiz_card' && fb.bgmMood === 'bgm_lofi' && fb.source === 'rule', '규칙 추천: 공부 주제를 알아보고 목록 안 값만 고름');
+  const ai = R.parseRecommendation('설명\n{"templateId":"basic","voiceId":"hacker","titleStyleId":"quiz_card","subtitleStyleId":"x","bgmMood":"auto","hookTitleText":"' + '가'.repeat(40) + '","reason":"이유"}', lists, fb);
+  assert(ai && ai.templateId === 'basic' && ai.voiceId === fb.voiceId && ai.subtitleStyleId === fb.subtitleStyleId && ai.hookTitleText.length === 24 && ai.source === 'ai', 'AI 추천: 목록 밖 값은 규칙 값으로, 문구는 길이 제한');
+  assert(R.parseRecommendation('JSON 아님', lists, fb) === null && R.parseRecommendation('{"templateId":"nope"}', lists, fb) === null, 'AI 추천: 깨진 응답·유효 값 0개는 null');
+  assert(R.buildRecommendPrompt('t', 's', lists).includes('quiz_card = 퀴즈'), '추천 프롬프트에 허용 ID 목록 포함');
 }
 
 function finish() {

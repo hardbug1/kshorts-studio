@@ -3753,7 +3753,7 @@ async function buildSfxTrack(
 async function executeRenderPipeline(
   params: RenderShortsRequest,
   onProgress?: (status: string, progress: number, message: string, errorDetails?: string) => void
-): Promise<{ success: boolean; degraded?: boolean; videoPath: string; audioPath: string; thumbnailPath?: string }> {
+): Promise<{ success: boolean; degraded?: boolean; script?: string; videoPath: string; audioPath: string; thumbnailPath?: string }> {
   const { id, title, prompt, script, voiceId, templateId, fontId, durationSeconds } = params;
   // id는 파일 이름과 ffmpeg 명령에 그대로 들어가므로 영문·숫자·_- 만 허용한다 (앱이 만드는 id는 모두 이 형식).
   if (!/^[A-Za-z0-9_-]{1,120}$/.test(String(id || ''))) {
@@ -4326,6 +4326,7 @@ async function executeRenderPipeline(
           progressPercent: 100,
           statusMessage: isDegradedRender ? DEGRADED_MSG : '렌더링 완료',
           degraded: isDegradedRender,
+          script: finalScript, // 대본 칸을 비워 AI가 쓴 경우에도 프로젝트에 남긴다(예약 업로드 설명·태그에 쓰임)
           videoPath: videoFilePath,
           videoUrl: `file://${videoFilePath}`,
           thumbnailPath: hasThumbnail ? thumbnailFilePath : undefined,
@@ -4340,6 +4341,7 @@ async function executeRenderPipeline(
     return {
       success: true,
       degraded: isDegradedRender,
+      script: finalScript,
       videoPath: videoFilePath,
       audioPath: audioFilePath,
       thumbnailPath: hasThumbnail ? thumbnailFilePath : undefined,
@@ -7500,6 +7502,37 @@ ipcMain.handle('search-stock-videos', async (_, params: { query: string; engine?
 // ----------------------------------------------------
 // 4. AI Pinned Comment & Interactive Vote Generator
 // ----------------------------------------------------
+// 영상 옵션 추천: 프롬프트·검증은 화면(src/lib/optionRecommender.ts)이 하고, 여기서는 AI 호출만 한다.
+// 구독 AI → Gemini 순. 둘 다 없으면 실패를 돌려주고 화면이 키워드 규칙으로 대신한다.
+const RECOMMEND_SYSTEM_PROMPT = '당신은 한국 유튜브 쇼츠 제작 전문가입니다. 요청한 JSON 객체 하나만 출력합니다.';
+ipcMain.handle('recommend-render-options', async (_, params: { prompt: string }) => {
+  const prompt = String(params?.prompt || '').slice(0, 12000);
+  if (!prompt.trim()) return { success: false, error: '추천할 내용이 비어 있습니다.' };
+  const settings = getStoredSettings();
+  try {
+    const sub = getSubscriptionLlm(settings);
+    if (sub) return { success: true, text: await runSubscriptionLlm(sub, RECOMMEND_SYSTEM_PROMPT, prompt) };
+    const geminiKey = settings.geminiApiKey || process.env.GEMINI_API_KEY;
+    if (!geminiKey) return { success: false, error: 'AI 연결(구독 AI 또는 Gemini 키)이 없습니다.' };
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_WATERFALL_MODELS[0]}:generateContent?key=${geminiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: RECOMMEND_SYSTEM_PROMPT }] },
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.6, maxOutputTokens: 800 },
+      }),
+    });
+    if (!res.ok) return { success: false, error: `Gemini 오류 (${res.status})` };
+    const data: any = await res.json();
+    const text = (data?.candidates?.[0]?.content?.parts || []).map((p: any) => p.text || '').join('');
+    return text ? { success: true, text } : { success: false, error: 'AI 응답이 비어 있습니다.' };
+  } catch (err: any) {
+    console.warn('[Recommend Options] AI call failed:', err);
+    return { success: false, error: err?.message || String(err) };
+  }
+});
+
 ipcMain.handle('generate-pinned-comments', async (_, params: { topic: string; script: string }) => {
   const topic = String(params.topic || '').trim();
   const script = String(params.script || '').trim();

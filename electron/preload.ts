@@ -2,6 +2,10 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type { GenerateScriptRequest, RenderShortsRequest, ShortsProject, AppSettings, AutoPilotSchedule, AutoPilotStatusEvent } from '../src/types';
 
 export const electronAPI = {
+  // 영상 옵션 추천용 AI 호출 (응답 원문을 돌려주고 검증은 화면에서 한다)
+  recommendRenderOptions: (params: { prompt: string }): Promise<{ success: boolean; text?: string; error?: string }> =>
+    ipcRenderer.invoke('recommend-render-options', params),
+
   // 끌어다 놓은 파일의 실제 경로 (Electron 32부터 File.path 가 없어졌다)
   getPathForFile: (file: File): string => webUtils.getPathForFile(file),
 
@@ -10,7 +14,7 @@ export const electronAPI = {
     ipcRenderer.invoke('generate-script', params),
 
   // Full Pipeline Render (Script -> Audio -> ASS -> FFmpeg Video)
-  renderShorts: (params: RenderShortsRequest): Promise<{ success: boolean; degraded?: boolean; videoPath: string; audioPath: string; thumbnailPath?: string }> => 
+  renderShorts: (params: RenderShortsRequest): Promise<{ success: boolean; degraded?: boolean; script?: string; videoPath: string; audioPath: string; thumbnailPath?: string }> => 
     ipcRenderer.invoke('render-shorts', params),
 
   // Progress listener
