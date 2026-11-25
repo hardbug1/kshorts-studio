@@ -85,18 +85,10 @@ export const VideoToShortsPage: React.FC<VideoToShortsPageProps> = ({
   // Handle File Selection via Native Dialog
   const handleSelectFile = async () => {
     try {
-      if (window.electronAPI?.selectSourceVideo) {
-        const filePath = await window.electronAPI.selectSourceVideo();
-        if (filePath) {
-          setVideoPath(filePath);
-          triggerAnalyze(filePath);
-        }
-      } else if (window.electronAPI?.selectLocalVideo) {
-        const filePath = await window.electronAPI.selectLocalVideo();
-        if (filePath) {
-          setVideoPath(filePath);
-          triggerAnalyze(filePath);
-        }
+      const filePath = await window.electronAPI?.selectSourceVideo();
+      if (filePath) {
+        setVideoPath(filePath);
+        triggerAnalyze(filePath);
       }
     } catch (err: any) {
       setRenderError('파일 선택 중 오류가 발생했습니다: ' + err?.message);
@@ -117,9 +109,7 @@ export const VideoToShortsPage: React.FC<VideoToShortsPageProps> = ({
     setRenderResult(null);
 
     try {
-      const res = window.electronAPI?.analyzeVideoForShorts
-        ? await window.electronAPI.analyzeVideoForShorts({ videoPath: targetPath.trim() })
-        : await window.electronAPI.analyzeLongVideo({ videoPath: targetPath.trim() });
+      const res = await window.electronAPI.analyzeVideoForShorts({ videoPath: targetPath.trim() });
 
       if (res.success && res.clips) {
         setAnalysis(res);
@@ -222,9 +212,7 @@ export const VideoToShortsPage: React.FC<VideoToShortsPageProps> = ({
         cropMode,
       };
 
-      const res = window.electronAPI?.renderVideoToShorts
-        ? await window.electronAPI.renderVideoToShorts(params)
-        : await window.electronAPI.extractLongToShorts(params);
+      const res = await window.electronAPI.renderVideoToShorts(params);
 
       if (res.success && res.videoPath) {
         setRenderResult({

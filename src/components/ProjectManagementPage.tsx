@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { FolderOpen, Play, Folder, Trash2, Calendar, Video } from 'lucide-react';
 import type { ShortsProject } from '../types';
-import { PORTAL_KO } from '../constants/portal';
 
 interface ProjectManagementPageProps {
   projects: ShortsProject[];
@@ -20,33 +19,6 @@ export const ProjectManagementPage: React.FC<ProjectManagementPageProps> = ({
   onOpenVideoFile,
   onNavigateToCreate,
 }) => {
-  const [exportingId, setExportingId] = useState<string | null>(null);
-  const [exportedId, setExportedId] = useState<string | null>(null);
-
-  const handleExportMultiPlatform = async (p: ShortsProject) => {
-    if (!p.videoPath) return;
-    setExportingId(p.id);
-    try {
-      if (window.electronAPI?.exportMultiPlatformBundle) {
-        const res = await window.electronAPI.exportMultiPlatformBundle({
-          projectId: p.id,
-          videoPath: p.videoPath,
-          title: p.title,
-          description: p.script,
-          tags: ['Shorts', '쇼츠', '릴스', '틱톡', '꿀팁'],
-        });
-        if (res.success && res.outputFolder) {
-          setExportedId(p.id);
-          setTimeout(() => setExportedId(null), 3000);
-          window.electronAPI.showInFolder?.(res.outputFolder);
-        }
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setExportingId(null);
-    }
-  };
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12 animate-in fade-in duration-200">
       {/* Header Bar */}
@@ -139,17 +111,6 @@ export const ProjectManagementPage: React.FC<ProjectManagementPageProps> = ({
                   <div className="flex items-center gap-1.5 shrink-0">
                     {p.videoPath && (
                       <>
-                        {/* 추후 순차 활성화 예정: 4대 플랫폼 동시 발행 패키지
-                        <button
-                          onClick={() => handleExportMultiPlatform(p)}
-                          disabled={exportingId === p.id}
-                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-pink-500 to-amber-500 hover:from-pink-600 hover:to-amber-600 text-white font-bold text-[11px] transition-all shadow-sm active:scale-95"
-                          title={`인스타 릴스, 틱톡, ${PORTAL_KO} 클립, 유튜브 4대 플랫폼 동시 발행 패키지 생성`}
-                        >
-                          {exportedId === p.id ? <Check className="w-3.5 h-3.5 stroke-[3]" /> : <Share2 className="w-3.5 h-3.5" />}
-                          <span>{exportingId === p.id ? '생성 중...' : exportedId === p.id ? '완료!' : '4대 플랫폼 내보내기'}</span>
-                        </button>
-                        */}
                         <button
                           onClick={() => onSelectProject(p)}
                           className="p-2 rounded-xl bg-blue-50 hover:bg-blue-600 text-blue-600 hover:text-white transition-all shadow-sm"

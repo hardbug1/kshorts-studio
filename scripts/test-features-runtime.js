@@ -253,8 +253,6 @@ assert(mainCjs.includes('summary_quiz'), '3초 핵심 요약 퀴즈형 댓글 �
 // Test 10: Long-to-Shorts Smart 9:16 Clipper Test
 // ----------------------------------------------------
 console.log('\n--- Test 10: 롱폼 to 쇼츠 하이라이트 분석 및 스마트 크롭 검증 ---');
-assert(mainCjs.includes('analyze-long-video'), 'main.cjs 번들에 analyze-long-video IPC 채널 포함 확인');
-assert(mainCjs.includes('extract-long-to-shorts'), 'main.cjs 번들에 extract-long-to-shorts IPC 채널 포함 확인');
 assert(mainCjs.includes('crop=ih*9/16:ih:(iw-ow)/2:0,scale=1080:1920'), '가로 16:9 ➡️ 세로 9:16 센터 크롭 FFmpeg 필터 정확성 확인');
 
 // ----------------------------------------------------

@@ -10,32 +10,19 @@ import {
   AlertCircle,
   Send,
   RefreshCw,
-  FolderSync,
-  Info,
-  Link as LinkIcon,
-  Tag,
   Plus,
   Trash2,
   ShoppingBag,
-  UploadCloud,
 } from 'lucide-react';
 import type { AppSettings, AffiliateLinkItem } from '../types';
 import { PORTAL_KO } from '../constants/portal';
-
-const InstagramIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
-    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-    <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
-  </svg>
-);
 
 interface PublishPageProps {
   settings: AppSettings;
   onSaveSettings: (settings: AppSettings) => void;
 }
 
-type PlatformTab = 'youtube' | 'monetization' | 'instagram' | 'tiktok' | 'naver' | 'telegram' | 'multi';
+type PlatformTab = 'youtube' | 'monetization' | 'telegram';
 
 export const PublishPage: React.FC<PublishPageProps> = ({ settings, onSaveSettings }) => {
   const [activeTab, setActiveTab] = useState<PlatformTab>('youtube');
@@ -61,38 +48,9 @@ export const PublishPage: React.FC<PublishPageProps> = ({ settings, onSaveSettin
   const [youtubeAutoComment, setYoutubeAutoComment] = useState<boolean>(settings.youtubeAutoComment ?? true);
   const [youtubeCommentMode, setYoutubeCommentMode] = useState<'custom' | 'ai_smart'>(settings.youtubeCommentMode || 'custom');
   const [youtubeCommentText, setYoutubeCommentText] = useState<string>(
-    settings.youtubeCommentText || '📌 영상 속 상세 정보 및 추천 링크 👉 https://...\n구독과 좋아요는 다음 영상 제작에 큰 힘이 됩니다! 궁금한 점은 댓글로 남겨주세요 ✨'
+    settings.youtubeCommentText || '구독과 좋아요는 다음 영상 제작에 큰 힘이 됩니다! 궁금한 점은 댓글로 남겨주세요 ✨'
   );
 
-  // Instagram Settings
-  const [instagramAccessToken, setInstagramAccessToken] = useState(settings.instagramAccessToken || '');
-  const [instagramAccountId, setInstagramAccountId] = useState(settings.instagramAccountId || '');
-  const [instagramAutoUpload, setInstagramAutoUpload] = useState<boolean>(settings.instagramAutoUpload || false);
-  const [instagramDefaultTags, setInstagramDefaultTags] = useState(
-    settings.instagramDefaultTags || '#릴스 #추천 #일상 #꿀팁 #쇼츠 #foryou #reels'
-  );
-  const [instagramAutoComment, setInstagramAutoComment] = useState<boolean>(settings.instagramAutoComment || false);
-  const [instagramCommentText, setInstagramCommentText] = useState(
-    settings.instagramCommentText || '💡 더 많은 꿀팁과 정보는 프로필 링크에서 확인하세요! 팔로우 & 저장은 필수 ❤️'
-  );
-
-  // TikTok Settings
-  const [tiktokClientKey, setTiktokClientKey] = useState(settings.tiktokClientKey || '');
-  const [tiktokClientSecret, setTiktokClientSecret] = useState(settings.tiktokClientSecret || '');
-  const [tiktokAccessToken, setTiktokAccessToken] = useState(settings.tiktokAccessToken || '');
-  const [tiktokAutoUpload, setTiktokAutoUpload] = useState<boolean>(settings.tiktokAutoUpload || false);
-  const [tiktokDefaultTags, setTiktokDefaultTags] = useState(
-    settings.tiktokDefaultTags || '#fyp #추천 #쇼츠 #viral #tiktokkorea #꿀팁'
-  );
-
-  // Naver Clip Settings
-  const [naverClientId, setNaverClientId] = useState(settings.naverClientId || '');
-  const [naverClientSecret, setNaverClientSecret] = useState(settings.naverClientSecret || '');
-  const [naverClipChannelId, setNaverClipChannelId] = useState(settings.naverClipChannelId || '');
-  const [naverAutoUpload, setNaverAutoUpload] = useState<boolean>(settings.naverAutoUpload ?? true);
-  const [naverDefaultTags, setNaverDefaultTags] = useState(
-    settings.naverDefaultTags || ('#클립 #' + PORTAL_KO + '클립 #정보 #꿀팁 #일상')
-  );
   const [naverBlogLink, setNaverBlogLink] = useState(
     settings.naverBlogLink || ''
   );
@@ -105,15 +63,6 @@ export const PublishPage: React.FC<PublishPageProps> = ({ settings, onSaveSettin
   // Test states
   const [isTestingYoutube, setIsTestingYoutube] = useState(false);
   const [youtubeTestResult, setYoutubeTestResult] = useState<{ success: boolean; message: string } | null>(null);
-
-  const [isTestingInstagram, setIsTestingInstagram] = useState(false);
-  const [instagramTestResult, setInstagramTestResult] = useState<{ success: boolean; message: string } | null>(null);
-
-  const [isTestingTiktok, setIsTestingTiktok] = useState(false);
-  const [tiktokTestResult, setTiktokTestResult] = useState<{ success: boolean; message: string } | null>(null);
-
-  const [isTestingNaver, setIsTestingNaver] = useState(false);
-  const [naverTestResult, setNaverTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const [isTestingTelegram, setIsTestingTelegram] = useState(false);
   const [telegramTestResult, setTelegramTestResult] = useState<{ success: boolean; message: string } | null>(null);
@@ -133,25 +82,7 @@ export const PublishPage: React.FC<PublishPageProps> = ({ settings, onSaveSettin
       youtubeAutoComment,
       youtubeCommentMode,
       youtubeCommentText: youtubeCommentText.trim() || undefined,
-      // Instagram
-      instagramAccessToken: instagramAccessToken.trim() || undefined,
-      instagramAccountId: instagramAccountId.trim() || undefined,
-      instagramAutoUpload,
-      instagramDefaultTags: instagramDefaultTags.trim() || undefined,
-      instagramAutoComment,
-      instagramCommentText: instagramCommentText.trim() || undefined,
-      // TikTok
-      tiktokClientKey: tiktokClientKey.trim() || undefined,
-      tiktokClientSecret: tiktokClientSecret.trim() || undefined,
-      tiktokAccessToken: tiktokAccessToken.trim() || undefined,
-      tiktokAutoUpload,
-      tiktokDefaultTags: tiktokDefaultTags.trim() || undefined,
-      // Naver Clip
-      naverClientId: naverClientId.trim() || undefined,
-      naverClientSecret: naverClientSecret.trim() || undefined,
-      naverClipChannelId: naverClipChannelId.trim() || undefined,
-      naverAutoUpload,
-      naverDefaultTags: naverDefaultTags.trim() || undefined,
+      // Blog / store link (monetization tab)
       naverBlogLink: naverBlogLink.trim() || undefined,
       // Telegram
       telegramBotToken: telegramBotToken.trim() || undefined,
@@ -233,87 +164,6 @@ export const PublishPage: React.FC<PublishPageProps> = ({ settings, onSaveSettin
   };
 
   // Test Instagram
-  const handleTestInstagram = async () => {
-    if (!instagramAccountId || !instagramAccessToken) {
-      setInstagramTestResult({
-        success: false,
-        message: 'Instagram Account ID와 Access Token을 입력해주세요.',
-      });
-      return;
-    }
-    setIsTestingInstagram(true);
-    setInstagramTestResult(null);
-    try {
-      if (window.electronAPI?.testInstagramConnection) {
-        const res = await window.electronAPI.testInstagramConnection({
-          accountId: instagramAccountId.trim(),
-          accessToken: instagramAccessToken.trim(),
-        });
-        setInstagramTestResult({
-          success: res.success,
-          message: res.message || res.error || (res.success ? '인스타그램 연동 성공' : '연동 실패'),
-        });
-      }
-    } catch (err: any) {
-      setInstagramTestResult({ success: false, message: `테스트 오류: ${err?.message || err}` });
-    } finally {
-      setIsTestingInstagram(false);
-    }
-  };
-
-  // Test TikTok
-  const handleTestTiktok = async () => {
-    if (!tiktokAccessToken) {
-      setTiktokTestResult({
-        success: false,
-        message: 'TikTok Access Token을 입력해주세요.',
-      });
-      return;
-    }
-    setIsTestingTiktok(true);
-    setTiktokTestResult(null);
-    try {
-      if (window.electronAPI?.testTikTokConnection) {
-        const res = await window.electronAPI.testTikTokConnection({
-          clientKey: tiktokClientKey.trim() || undefined,
-          accessToken: tiktokAccessToken.trim(),
-        });
-        setTiktokTestResult({
-          success: res.success,
-          message: res.message || res.error || (res.success ? '틱톡 연동 확인 완료' : '연동 실패'),
-        });
-      }
-    } catch (err: any) {
-      setTiktokTestResult({ success: false, message: `테스트 오류: ${err?.message || err}` });
-    } finally {
-      setIsTestingTiktok(false);
-    }
-  };
-
-  // Test Naver Clip
-  const handleTestNaver = async () => {
-    setIsTestingNaver(true);
-    setNaverTestResult(null);
-    try {
-      if (window.electronAPI?.testNaverClipConnection) {
-        const res = await window.electronAPI.testNaverClipConnection({
-          clientId: naverClientId.trim() || undefined,
-          clientSecret: naverClientSecret.trim() || undefined,
-          channelId: naverClipChannelId.trim() || undefined,
-        });
-        setNaverTestResult({
-          success: res.success,
-          message: res.message || (PORTAL_KO + ' 클립 창작자 연동 규격 확인 완료'),
-        });
-      }
-    } catch (err: any) {
-      setNaverTestResult({ success: false, message: `오류: ${err?.message || err}` });
-    } finally {
-      setIsTestingNaver(false);
-    }
-  };
-
-  // Test Telegram
   const handleTestTelegram = async () => {
     if (!telegramBotToken || !telegramChatId) {
       setTelegramTestResult({ success: false, message: '텔레그램 봇 토큰과 채팅 ID를 모두 입력해주세요.' });
@@ -349,9 +199,6 @@ export const PublishPage: React.FC<PublishPageProps> = ({ settings, onSaveSettin
 
   // Status flags
   const isYoutubeConnected = Boolean(youtubeRefreshToken && youtubeClientId);
-  const isInstagramConnected = Boolean(instagramAccessToken && instagramAccountId);
-  const isTiktokConnected = Boolean(tiktokAccessToken);
-  const isNaverConnected = Boolean(naverClipChannelId || naverClientId);
   const isTelegramConnected = Boolean(telegramBotToken && telegramChatId);
 
   return (
@@ -436,46 +283,6 @@ export const PublishPage: React.FC<PublishPageProps> = ({ settings, onSaveSettin
           <ShoppingBag className="w-4 h-4" />
           <span>수익화 제휴링크</span>
         </button>
-
-        {/* [추후 활성화 예정] 인스타그램 릴스
-        <button
-          onClick={() => setActiveTab('instagram')}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-white text-slate-400 border border-slate-200"
-        >
-          <InstagramIcon className="w-4 h-4" />
-          <span>인스타그램 릴스 (예정)</span>
-        </button>
-        */}
-
-        {/* [추후 활성화 예정] 틱톡 (TikTok)
-        <button
-          onClick={() => setActiveTab('tiktok')}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-white text-slate-400 border border-slate-200"
-        >
-          <Share2 className="w-4 h-4" />
-          <span>틱톡 (예정)</span>
-        </button>
-        */}
-
-        {/* [추후 활성화 예정] N사 클립 (Clip)
-        <button
-          onClick={() => setActiveTab('naver')}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-white text-slate-400 border border-slate-200"
-        >
-          <FolderSync className="w-4 h-4" />
-          <span>N사 클립 (예정)</span>
-        </button>
-        */}
-
-        {/* [추후 활성화 예정] 4대 플랫폼 원소스 패키지
-        <button
-          onClick={() => setActiveTab('multi')}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-white text-slate-400 border border-slate-200"
-        >
-          <Layers className="w-4 h-4" />
-          <span>4대 플랫폼 패키지 (예정)</span>
-        </button>
-        */}
       </div>
 
       {/* ========================================================================= */}
@@ -829,7 +636,7 @@ export const PublishPage: React.FC<PublishPageProps> = ({ settings, onSaveSettin
       )}
 
       {/* ========================================================================= */}
-      {/* [다음에 순차 활성화 예정] 1.5. 수익화 제휴링크 & 챕터 (쇼츠 집중 모드) */}
+      {/* 1.5. 수익화 제휴링크 */}
       {/* ========================================================================= */}
       {activeTab === 'monetization' && (
         <div className="space-y-6 animate-in fade-in duration-200">
@@ -1029,423 +836,6 @@ export const PublishPage: React.FC<PublishPageProps> = ({ settings, onSaveSettin
       )}
 
       {/* ========================================================================= */}
-      {/* [다음에 순차 활성화 예정] 2. 인스타그램 릴스 (쇼츠 집중 모드) */}
-      {/* ========================================================================= */}
-      {/* @ts-ignore - 추후 순차 활성화 예정 */}
-      {false && activeTab === 'instagram' && (
-        <div className="space-y-6">
-          <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className={`w-3.5 h-3.5 rounded-full shrink-0 ${isInstagramConnected ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
-              <div>
-                <p className="text-xs font-extrabold text-slate-900">
-                  {isInstagramConnected ? '인스타그램 프로페셔널 계정이 연결되어 있습니다.' : '인스타그램 Meta Graph API가 등록되지 않았습니다.'}
-                </p>
-                <span className="text-[11px] text-slate-500 font-medium">
-                  {isInstagramConnected
-                    ? '인스타그램 릴스 9:16 모바일 최적화 및 첫 댓글 태그 자동화가 활성화되었습니다.'
-                    : 'Meta for Developers에서 발급한 Instagram Graph API 토큰을 등록해주세요.'}
-                </span>
-              </div>
-            </div>
-
-            <button
-              onClick={handleTestInstagram}
-              disabled={isTestingInstagram || !instagramAccessToken || !instagramAccountId}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 disabled:opacity-40 text-white text-xs font-bold shadow-xs transition-all active:scale-95 shrink-0"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isTestingInstagram ? 'animate-spin' : ''}`} />
-              <span>{isTestingInstagram ? '연결 확인 중...' : '인스타그램 연동 상태 테스트'}</span>
-            </button>
-          </div>
-
-          {instagramTestResult && (
-            <div className={`p-4 rounded-2xl text-xs font-bold border whitespace-pre-line leading-relaxed ${
-              instagramTestResult?.success
-                ? 'bg-emerald-50 text-emerald-900 border-emerald-200 shadow-xs'
-                : 'bg-rose-50 text-rose-900 border-rose-200 shadow-xs'
-            }`}>
-              {instagramTestResult?.message}
-            </div>
-          )}
-
-          {/* Instagram Settings Card */}
-          <div className="bg-white border border-slate-200/90 rounded-2xl p-6 space-y-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-                <InstagramIcon className="w-4 h-4 text-pink-600" />
-                <span>Meta Graph API (Instagram Professional) 설정</span>
-              </h2>
-              <a
-                href="https://developers.facebook.com/apps"
-                target="_blank"
-                rel="noreferrer"
-                className="text-[11px] text-pink-600 hover:text-pink-700 font-bold hover:underline flex items-center gap-1"
-              >
-                <span>Meta for Developers 콘솔</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            </div>
-
-            {/* Guide */}
-            <div className="p-4 rounded-xl bg-pink-50/70 border border-pink-200 text-xs text-slate-700 space-y-1.5">
-              <div className="font-extrabold text-pink-900 flex items-center gap-1">
-                <Info className="w-4 h-4 text-pink-600" />
-                <span>인스타그램 릴스 연동 가이드 (3단계):</span>
-              </div>
-              <div className="space-y-1 text-[11px] text-slate-600 pl-2">
-                <p>1. 내 인스타그램 계정을 <b>[프로페셔널(비즈니스 또는 크리에이터)]</b> 계정으로 무료 전환 후 페이스북 페이지와 연동</p>
-                <p>2. <a href="https://developers.facebook.com/" target="_blank" rel="noreferrer" className="text-pink-600 underline font-bold">Meta for Developers</a>에서 앱을 생성하고 <b>Instagram Graph API</b>를 추가</p>
-                <p>3. 그래프 API 탐색기에서 <code className="bg-white px-1 py-0.5 rounded text-pink-700 font-mono">instagram_basic, instagram_content_publish</code> 권한을 부여받아 생성된 토큰을 입력하세요.</p>
-              </div>
-            </div>
-
-            <div className="space-y-3.5 text-xs">
-              <div className="space-y-1.5">
-                <label className="font-bold text-slate-700 flex items-center justify-between">
-                  <span>Instagram Business Account ID</span>
-                  <span className="text-[10px] text-slate-400">숫자 형태의 인스타그램 비즈니스 ID</span>
-                </label>
-                <input
-                  type="text"
-                  value={instagramAccountId}
-                  onChange={(e) => setInstagramAccountId(e.target.value)}
-                  placeholder="예: 17841400000000000"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-pink-500 focus:bg-white focus:ring-1 focus:ring-pink-100 font-mono"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="font-bold text-slate-700 flex items-center justify-between">
-                  <span>Instagram User Access Token (장기 토큰 권장)</span>
-                  <span className="text-[10px] text-pink-600 font-bold">EAAG... 형태의 액세스 토큰</span>
-                </label>
-                <input
-                  type="password"
-                  value={instagramAccessToken}
-                  onChange={(e) => setInstagramAccessToken(e.target.value)}
-                  placeholder="예: EAAG..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-pink-500 focus:bg-white focus:ring-1 focus:ring-pink-100 font-mono"
-                />
-              </div>
-
-              {/* Default Reels Tags */}
-              <div className="space-y-1.5 pt-2">
-                <label className="font-bold text-slate-700 flex items-center gap-1.5">
-                  <Tag className="w-3.5 h-3.5 text-pink-600" />
-                  <span>인스타그램 릴스 고정 해시태그 템플릿</span>
-                </label>
-                <input
-                  type="text"
-                  value={instagramDefaultTags}
-                  onChange={(e) => setInstagramDefaultTags(e.target.value)}
-                  placeholder="예: #릴스 #추천 #일상 #꿀팁 #쇼츠 #reels #foryou"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-pink-500 focus:bg-white font-medium"
-                />
-                <p className="text-[10px] text-slate-400">인스타그램 알고리즘 추천 탭(#릴스, #추천 등) 노출에 자동 반영됩니다.</p>
-              </div>
-
-              {/* Instagram Auto-Comment */}
-              <div className="p-4 rounded-xl bg-pink-50/50 border border-pink-200 space-y-3 mt-3">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <div className="text-xs font-extrabold text-pink-900 flex items-center gap-1.5">
-                      <MessageSquare className="w-3.5 h-3.5 text-pink-600" />
-                      <span>인스타그램 릴스 첫 댓글 자동 작성</span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 font-medium">
-                      릴스 본문을 깔끔하게 유지하고, 프로필 링크 유도 및 추가 해시태그를 첫 댓글에 자동으로 남깁니다.
-                    </p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={instagramAutoComment}
-                      onChange={(e) => setInstagramAutoComment(e.target.checked)}
-                      className="sr-only peer"
-                    />
-                    <div className="w-10 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-pink-600"></div>
-                  </label>
-                </div>
-
-                {instagramAutoComment && (
-                  <textarea
-                    value={instagramCommentText}
-                    onChange={(e) => setInstagramCommentText(e.target.value)}
-                    rows={2}
-                    className="w-full bg-white border border-pink-200 rounded-xl p-3 text-xs text-slate-900 focus:outline-none focus:border-pink-500 font-medium resize-y"
-                    placeholder="예: 💡 더 많은 꿀팁과 정보는 프로필 링크에서 확인하세요! 팔로우 & 저장은 필수 ❤️"
-                  />
-                )}
-              </div>
-            </div>
-          </div>
-
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* [다음에 순차 활성화 예정] 3. 틱톡 (쇼츠 집중 모드) */}
-      {/* ========================================================================= */}
-      {/* @ts-ignore - 추후 순차 활성화 예정 */}
-      {false && activeTab === 'tiktok' && (
-        <div className="space-y-6">
-          <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className={`w-3.5 h-3.5 rounded-full shrink-0 ${isTiktokConnected ? 'bg-cyan-500 animate-pulse' : 'bg-slate-300'}`} />
-              <div>
-                <p className="text-xs font-extrabold text-slate-900">
-                  {isTiktokConnected ? '틱톡 (TikTok Content Posting API) 토큰이 설정되어 있습니다.' : '틱톡 API 토큰이 등록되지 않았습니다.'}
-                </p>
-                <span className="text-[11px] text-slate-500 font-medium">
-                  {isTiktokConnected
-                    ? '틱톡 #fyp 바이럴 해시태그 패키징 및 다이렉트 포스팅이 준비되었습니다.'
-                    : 'TikTok for Developers에서 발급받은 API 키를 입력해주세요.'}
-                </span>
-              </div>
-            </div>
-
-            <button
-              onClick={handleTestTiktok}
-              disabled={isTestingTiktok || !tiktokAccessToken}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-cyan-300 border border-cyan-500/40 text-xs font-bold shadow-xs transition-all active:scale-95 shrink-0"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isTestingTiktok ? 'animate-spin' : ''}`} />
-              <span>{isTestingTiktok ? '연결 확인 중...' : '틱톡 연동 상태 테스트'}</span>
-            </button>
-          </div>
-
-          {tiktokTestResult && (
-            <div className={`p-4 rounded-2xl text-xs font-bold border whitespace-pre-line leading-relaxed ${
-              tiktokTestResult?.success
-                ? 'bg-emerald-50 text-emerald-900 border-emerald-200 shadow-xs'
-                : 'bg-rose-50 text-rose-900 border-rose-200 shadow-xs'
-            }`}>
-              {tiktokTestResult?.message}
-            </div>
-          )}
-
-          {/* TikTok Settings Card */}
-          <div className="bg-white border border-slate-200/90 rounded-2xl p-6 space-y-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-                <Share2 className="w-4 h-4 text-slate-900" />
-                <span>TikTok for Developers API 설정</span>
-              </h2>
-              <a
-                href="https://developers.tiktok.com/"
-                target="_blank"
-                rel="noreferrer"
-                className="text-[11px] text-slate-900 hover:text-cyan-600 font-bold hover:underline flex items-center gap-1"
-              >
-                <span>TikTok 개발자 센터</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            </div>
-
-            <div className="p-4 rounded-xl bg-slate-900 text-white text-xs space-y-1.5 border border-slate-800">
-              <div className="font-extrabold text-cyan-400 flex items-center gap-1">
-                <Info className="w-4 h-4 text-cyan-400" />
-                <span>틱톡 Content Posting API 안내:</span>
-              </div>
-              <p className="text-[11px] text-slate-300 leading-relaxed">
-                틱톡 개발자 센터에서 <b>Content Posting API</b> 권한을 활성화하면 생성된 쇼츠를 내 틱톡 계정의 [임시보관함(Inbox)] 또는 직접 비디오로 1초 만에 전송할 수 있습니다.
-              </p>
-            </div>
-
-            <div className="space-y-3.5 text-xs">
-              <div className="space-y-1.5">
-                <label className="font-bold text-slate-700">TikTok Client Key (App ID)</label>
-                <input
-                  type="text"
-                  value={tiktokClientKey}
-                  onChange={(e) => setTiktokClientKey(e.target.value)}
-                  placeholder="예: awxxxxxxxx..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-800 focus:bg-white font-mono"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="font-bold text-slate-700">TikTok Client Secret</label>
-                <input
-                  type="password"
-                  value={tiktokClientSecret}
-                  onChange={(e) => setTiktokClientSecret(e.target.value)}
-                  placeholder="예: xxxxxxxx..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-800 focus:bg-white font-mono"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="font-bold text-slate-700">TikTok Access Token (User Access Token)</label>
-                <input
-                  type="password"
-                  value={tiktokAccessToken}
-                  onChange={(e) => setTiktokAccessToken(e.target.value)}
-                  placeholder="예: act.xxxxxxxx..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-800 focus:bg-white font-mono"
-                />
-              </div>
-
-              {/* TikTok Viral Tags */}
-              <div className="space-y-1.5 pt-2">
-                <label className="font-bold text-slate-700 flex items-center gap-1.5">
-                  <Tag className="w-3.5 h-3.5 text-cyan-600" />
-                  <span>틱톡 기본 바이럴 태그 & 키워드</span>
-                </label>
-                <input
-                  type="text"
-                  value={tiktokDefaultTags}
-                  onChange={(e) => setTiktokDefaultTags(e.target.value)}
-                  placeholder="예: #fyp #추천 #쇼츠 #viral #tiktokkorea #꿀팁"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-800 focus:bg-white font-medium"
-                />
-                <p className="text-[10px] text-slate-400">틱톡의 알고리즘 피드(#fyp, #foryoupage) 노출 최적화에 사용됩니다.</p>
-              </div>
-            </div>
-          </div>
-
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* [다음에 순차 활성화 예정] 4. N사 클립 (쇼츠 집중 모드) */}
-      {/* ========================================================================= */}
-      {/* @ts-ignore - 추후 순차 활성화 예정 */}
-      {false && activeTab === 'naver' && (
-        <div className="space-y-6">
-          <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className={`w-3.5 h-3.5 rounded-full shrink-0 ${isNaverConnected ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
-              <div>
-                <p className="text-xs font-extrabold text-slate-900">
-                  {isNaverConnected ? (PORTAL_KO + ' 클립(Naver Clip) 창작자 세팅이 완료되었습니다.') : (PORTAL_KO + ' 클립 설정이 비어있습니다.')}
-                </p>
-                <span className="text-[11px] text-slate-500 font-medium">
-                  {isNaverConnected
-                    ? (PORTAL_KO + ' 앱 메인 클립 탭 및 블로그 숏폼 동시 노출 규격으로 완벽 패키징됩니다.')
-                    : (PORTAL_KO + ' 창작자 센터 계정 정보 및 블로그 연동 링크를 설정해주세요.')}
-                </span>
-              </div>
-            </div>
-
-            <button
-              onClick={handleTestNaver}
-              disabled={isTestingNaver}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-all active:scale-95 shrink-0"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isTestingNaver ? 'animate-spin' : ''}`} />
-              <span>{isTestingNaver ? '규격 검증 중...' : (PORTAL_KO + ' 클립 설정 확인')}</span>
-            </button>
-          </div>
-
-          {naverTestResult && (
-            <div className="p-4 rounded-2xl text-xs font-bold border whitespace-pre-line leading-relaxed bg-emerald-50 text-emerald-900 border-emerald-200 shadow-xs">
-              {naverTestResult?.message}
-            </div>
-          )}
-
-          {/* Naver Clip Settings Card */}
-          <div className="bg-white border border-slate-200/90 rounded-2xl p-6 space-y-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-                <FolderSync className="w-4 h-4 text-emerald-600" />
-                <span>{PORTAL_KO} 클립(Naver Clip) & 블로그 연동 설정</span>
-              </h2>
-              <a
-                href="https://creator.naver.com/"
-                target="_blank"
-                rel="noreferrer"
-                className="text-[11px] text-emerald-600 hover:text-emerald-700 font-bold hover:underline flex items-center gap-1"
-              >
-                <span>{PORTAL_KO} 창작자 센터 바로가기</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            </div>
-
-            <div className="p-4 rounded-xl bg-emerald-50/70 border border-emerald-200 text-xs text-slate-700 space-y-1.5">
-              <div className="font-extrabold text-emerald-900 flex items-center gap-1">
-                <Info className="w-4 h-4 text-emerald-600" />
-                <span>{PORTAL_KO} 클립(Clip) 알고리즘 노출 포인트:</span>
-              </div>
-              <p className="text-[11px] text-slate-600 leading-relaxed">
-                {PORTAL_KO} 앱 메인의 <b>클립 탭</b>은 국내 트래픽 점유율 1위 {PORTAL_KO} 포털의 신규 창작자 우대 알고리즘을 탑재하고 있습니다. {PORTAL_KO} 블로그 ID 또는 스마트스토어 링크를 연동해두면 영상 하단 스티커 및 텍스트를 통해 강력한 트래픽 전환이 일어납니다.
-              </p>
-            </div>
-
-            <div className="space-y-3.5 text-xs">
-              <div className="space-y-1.5">
-                <label className="font-bold text-slate-700 flex items-center justify-between">
-                  <span>{PORTAL_KO} 클립 채널 ID 또는 {PORTAL_KO} 아이디(ID)</span>
-                  <span className="text-[10px] text-slate-400">{PORTAL_KO} 창작자 센터 등록 계정</span>
-                </label>
-                <input
-                  type="text"
-                  value={naverClipChannelId}
-                  onChange={(e) => setNaverClipChannelId(e.target.value)}
-                  placeholder="예: my_naver_id 또는 clip_channel_01"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:bg-white font-medium"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="font-bold text-slate-700 flex items-center gap-1.5">
-                  <LinkIcon className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>연계 {PORTAL_KO} 블로그 / 스마트스토어 링크 템플릿</span>
-                </label>
-                <input
-                  type="text"
-                  value={naverBlogLink}
-                  onChange={(e) => setNaverBlogLink(e.target.value)}
-                  placeholder="예: https://blog.naver.com/my_id 또는 스마트스토어 URL"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:bg-white font-medium"
-                />
-                <p className="text-[10px] text-slate-400">클립 본문 및 상세 정보에 자동으로 삽입되어 유입을 극대화합니다.</p>
-              </div>
-
-              <div className="space-y-1.5 pt-2">
-                <label className="font-bold text-slate-700 flex items-center gap-1.5">
-                  <Tag className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>{PORTAL_KO} 클립 기본 카테고리 태그</span>
-                </label>
-                <input
-                  type="text"
-                  value={naverDefaultTags}
-                  onChange={(e) => setNaverDefaultTags(e.target.value)}
-                  placeholder={`예: #클립 #${PORTAL_KO}클립 #정보 #꿀팁 #일상`}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:bg-white font-medium"
-                />
-              </div>
-
-              {/* Naver Developer Client ID & Secret (Optional) */}
-              <div className="pt-2 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-slate-600">{PORTAL_KO} 검색 API Client ID (선택)</label>
-                  <input
-                    type="text"
-                    value={naverClientId}
-                    onChange={(e) => setNaverClientId(e.target.value)}
-                    placeholder="선택 사항"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-slate-600">{PORTAL_KO} Client Secret (선택)</label>
-                  <input
-                    type="password"
-                    value={naverClientSecret}
-                    onChange={(e) => setNaverClientSecret(e.target.value)}
-                    placeholder="선택 사항"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
       {/* 5. TELEGRAM TAB */}
       {/* ========================================================================= */}
       {activeTab === 'telegram' && (
@@ -1532,83 +922,6 @@ export const PublishPage: React.FC<PublishPageProps> = ({ settings, onSaveSettin
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* [다음에 순차 활성화 예정] 6. 4대 플랫폼 동시 발행 패키지 (쇼츠 집중 모드) */}
-      {/* ========================================================================= */}
-      {/* @ts-ignore - 추후 순차 활성화 예정 */}
-      {false && activeTab === 'multi' && (
-        <div className="space-y-6">
-          <div className="bg-white border border-slate-200/90 rounded-2xl p-6 space-y-4 shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-pink-500 via-indigo-600 to-cyan-500 flex items-center justify-center text-white shadow-sm font-black text-sm">
-                4in1
-              </div>
-              <div>
-                <h2 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-                  <span>원소스 멀티유즈: 4대 플랫폼 동시 발행 작동 원리</span>
-                </h2>
-                <p className="text-xs text-slate-500 font-medium">
-                  1편의 영상으로 4대 알고리즘(유튜브 쇼츠, 인스타그램 릴스, 틱톡, {PORTAL_KO} 클립)을 동시 공략하는 가장 확실한 방법입니다.
-                </p>
-              </div>
-            </div>
-
-            {/* 4 Platforms Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 pt-2">
-              <div className="p-4 rounded-xl border border-red-200 bg-red-50/50 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-extrabold text-xs text-red-700">1. YouTube Shorts</span>
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-700">API 자동 업로드</span>
-                </div>
-                <p className="text-[11px] text-slate-600 font-medium leading-relaxed">
-                  OAuth 2.0 직접 연동을 통한 무인 전자동 업로드 및 첫 고정 댓글 즉각 등록
-                </p>
-              </div>
-
-              <div className="p-4 rounded-xl border border-pink-200 bg-pink-50/50 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-extrabold text-xs text-pink-700">2. Instagram Reels</span>
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-pink-100 text-pink-700">릴스 최적화</span>
-                </div>
-                <p className="text-[11px] text-slate-600 font-medium leading-relaxed">
-                  #릴스 #추천 해시태그 패키징 및 프로필 링크 유도 첫 댓글 동시 생성
-                </p>
-              </div>
-
-              <div className="p-4 rounded-xl border border-slate-800 bg-slate-900 text-white space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-extrabold text-xs text-white">3. TikTok</span>
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-800 text-cyan-400">#fyp 알고리즘</span>
-                </div>
-                <p className="text-[11px] text-slate-300 font-medium leading-relaxed">
-                  틱톡 바이럴 키워드 및 Content Posting API 연동을 통한 피드 직배포
-                </p>
-              </div>
-
-              <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/50 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-extrabold text-xs text-emerald-700">4. {PORTAL_KO} 클립</span>
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">{PORTAL_KO} 메인</span>
-                </div>
-                <p className="text-[11px] text-slate-600 font-medium leading-relaxed">
-                  {PORTAL_KO} 포털 클립 탭 전용 규격 태그 및 블로그·스마트스토어 전환 링크 패키징
-                </p>
-              </div>
-            </div>
-
-            <div className="p-4 rounded-xl bg-blue-50/80 border border-blue-200 text-xs text-blue-900 space-y-2">
-              <p className="font-bold flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-blue-600" />
-                <span>4대 플랫폼 동시 발행 패키지 사용 방법:</span>
-              </p>
-              <p className="text-[11px] text-slate-600 leading-relaxed pl-2">
-                왼쪽 메뉴의 <strong>[작성글/영상 관리]</strong>에 들어가서 생성된 쇼츠 영상 우측의 <strong>[4대 플랫폼 동시 발행 패키지 내보내기]</strong> 버튼을 클릭하세요.<br />
-                단 1초 만에 4개 플랫폼에 최적화된 제목, 본문, 해시태그, 첫 댓글 텍스트 파일과 9:16 비디오가 하나의 전용 폴더로 자동 구성되어 손쉽게 원클릭 복사/게시할 수 있습니다.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

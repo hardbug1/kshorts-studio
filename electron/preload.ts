@@ -65,8 +65,6 @@ export const electronAPI = {
   // Smart Telegram Notification & Multi-Platform Export
   testTelegramNotification: (params: { botToken: string; chatId: string }): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('test-telegram-notification', params),
-  exportMultiPlatformBundle: (params: { projectId: string; videoPath: string; title: string; description: string; tags?: string[] }): Promise<import('../src/types').MultiPlatformExportResult> =>
-    ipcRenderer.invoke('export-multi-platform-bundle', params),
 
   // Platform Connection Testing & Verification
   testYoutubeConnection: (params: { clientId: string; clientSecret: string; refreshToken: string }): Promise<{ success: boolean; channelTitle?: string; subscriberCount?: string; hasCommentScope?: boolean; message?: string; error?: string }> =>
@@ -136,10 +134,6 @@ export const electronAPI = {
     ipcRenderer.invoke('analyze-video-for-shorts', params),
   renderVideoToShorts: (params: import('../src/types').VideoToShortsParams): Promise<import('../src/types').VideoToShortsResult> =>
     ipcRenderer.invoke('render-video-to-shorts', params),
-  analyzeLongVideo: (params: { videoPath: string }): Promise<import('../src/types').VideoAnalysisResult> =>
-    ipcRenderer.invoke('analyze-long-video', params),
-  extractLongToShorts: (params: any): Promise<import('../src/types').VideoToShortsResult> =>
-    ipcRenderer.invoke('extract-long-to-shorts', params),
 
   // 6. Smart Publishing Scheduler & Calendar
   getScheduledShorts: (): Promise<import('../src/types').ScheduledShortsItem[]> =>

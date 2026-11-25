@@ -28,7 +28,6 @@ const ThumbnailABEditor = lazy(() => import('./components/ThumbnailABEditor').th
 const VideoPlayerModal = lazy(() => import('./components/VideoPlayerModal').then((m) => ({ default: m.VideoPlayerModal })));
 const UpdateModal = lazy(() => import('./components/UpdateModal').then((m) => ({ default: m.UpdateModal })));
 const BatchGeneratorModal = lazy(() => import('./components/BatchGeneratorModal').then((m) => ({ default: m.BatchGeneratorModal })));
-const LongToShortsModal = lazy(() => import('./components/LongToShortsModal').then((m) => ({ default: m.LongToShortsModal })));
 const VideoToShortsPage = lazy(() => import('./components/VideoToShortsPage').then((m) => ({ default: m.VideoToShortsPage })));
 const PublishCalendarModal = lazy(() => import('./components/PublishCalendarModal').then((m) => ({ default: m.PublishCalendarModal })));
 import { TokenRechargeModal } from './components/TokenRechargeModal';
@@ -111,13 +110,12 @@ export default function App() {
   const [subtitleStyleId, setSubtitleStyleId] = useState<SubtitleStyleId>('mrbeast');
   const [subtitleFontSize, setSubtitleFontSize] = useState<SubtitleFontSize>('medium');
   const [titleStyleId, setTitleStyleId] = useState<TitleStyleId>('yellow_tape');
-  const [durationSeconds, setDurationSeconds] = useState(55);
+  const durationSeconds = 55; // 화면에 길이 선택이 없어 고정값
   const [bgmMood, setBgmMood] = useState<string>('auto');
   const [bgmVolume, setBgmVolume] = useState<number>(0.22);
   const [enableBgm, setEnableBgm] = useState<boolean>(true);
   const [enableHookIntro, setEnableHookIntro] = useState<boolean>(true);
   const [enablePopupSubtitles, setEnablePopupSubtitles] = useState<boolean>(true);
-  const [enableKaraoke, setEnableKaraoke] = useState<boolean>(false);
   const [enableEmojiStickers, setEnableEmojiStickers] = useState<boolean>(true);
   const [enableSfx, setEnableSfx] = useState<boolean>(true);
   const [sfxVolume, setSfxVolume] = useState<number>(0.35);
@@ -155,22 +153,18 @@ export default function App() {
   const [currentProject, setCurrentProject] = useState<ShortsProject | null>(null);
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
-  const [isLongToShortsModalOpen, setIsLongToShortsModalOpen] = useState(false);
   const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
 
   // Network Connectivity Resilience State
-  const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
   const [networkToast, setNetworkToast] = useState<{ type: 'offline' | 'restored'; message: string } | null>(null);
 
   useEffect(() => {
     const handleOnline = () => {
-      setIsOnline(true);
       setNetworkToast({ type: 'restored', message: '인터넷 연결이 정상 복구되었습니다.' });
       setTimeout(() => setNetworkToast(null), 4000);
     };
 
     const handleOffline = () => {
-      setIsOnline(false);
       setNetworkToast({
         type: 'offline',
         message: '인터넷 연결이 끊어졌습니다. 네트워크 복구 시까지 온라인 API 기능이 일시 정지됩니다.',
@@ -183,7 +177,6 @@ export default function App() {
     // Initial check with backend
     if (window.electronAPI?.checkNetworkStatus) {
       window.electronAPI.checkNetworkStatus().then(({ online }) => {
-        setIsOnline(online);
         if (!online) {
           setNetworkToast({
             type: 'offline',
@@ -378,7 +371,7 @@ export default function App() {
       if (window.electronAPI) {
         const generated = await window.electronAPI.generateScript({
           prompt,
-          durationSeconds: 55,
+          durationSeconds,
           geminiApiKey: settings.geminiApiKey,
           apiKey: settings.openaiApiKey,
           loopMode,
@@ -499,7 +492,7 @@ export default function App() {
           sfxVolume,
           enableStockVideo,
           loopMode,
-          enableKaraoke: enableKaraoke || subtitleStyleId === 'karaoke',
+          enableKaraoke: subtitleStyleId === 'karaoke',
           enableEmojiStickers,
           voiceSpeed,
           subtitleMotionType,
@@ -756,7 +749,7 @@ export default function App() {
                   setIsVideoModalOpen(true);
                 }}
                 onOpenBatchModal={() => setIsBatchModalOpen(true)}
-                onOpenLongToShortsModal={() => setIsLongToShortsModalOpen(true)}
+                onOpenLongToShortsModal={() => setCurrentTab('video-to-shorts')}
                 onOpenCalendarModal={() => setIsCalendarModalOpen(true)}
               />
             )}
@@ -1108,19 +1101,6 @@ export default function App() {
             }
           }}
         />
-
-        {/* Long-to-Shorts Video Clipper Modal */}
-        {isLongToShortsModalOpen && (
-          <LongToShortsModal
-            isOpen={isLongToShortsModalOpen}
-            onClose={() => setIsLongToShortsModalOpen(false)}
-            onClipExtracted={() => {
-              if (window.electronAPI) {
-                window.electronAPI.getProjects().then(setProjects).catch(console.error);
-              }
-            }}
-          />
-        )}
 
         {/* Shorts Publish Calendar & Distribute Modal */}
         {isCalendarModalOpen && (

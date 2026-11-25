@@ -15,7 +15,7 @@ import { type ShortsPreset, DEFAULT_PRESETS } from '../types';
 import { VOICES, VoiceSelector } from './VoiceSelector';
 import { FONTS, FontSelector } from './FontSelector';
 import { TEMPLATES, TemplateSelector } from './TemplateSelector';
-import { SUBTITLE_STYLES, TITLE_STYLES } from './SubtitleStyleSelector';
+import { SUBTITLE_STYLES } from './SubtitleStyleSelector';
 import type { NavTab } from './Sidebar';
 
 interface PresetsManagementPageProps {
@@ -169,7 +169,6 @@ export const PresetsManagementPage: React.FC<PresetsManagementPageProps> = ({
               );
               const template = TEMPLATES.find((t) => t.id === preset.templateId);
               const subtitleStyle = SUBTITLE_STYLES.find((s) => s.id === preset.subtitleStyleId);
-              const titleStyle = TITLE_STYLES.find((t) => t.id === preset.titleStyleId);
 
               return (
                 <div

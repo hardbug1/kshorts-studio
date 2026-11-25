@@ -6070,77 +6070,6 @@ ipcMain.handle('export-multilingual-bundle', async (_, { projectId, videoPath, o
 // ----------------------------------------------------
 // Multi-Platform Export & Publishing (TikTok, Reels, Naver Clip)
 // ----------------------------------------------------
-ipcMain.handle('export-multi-platform-bundle', async (_, { projectId, videoPath, title, description, tags }) => {
-  try {
-    const settings = getStoredSettings();
-    const outputBase = settings.outputDirectory || OUTPUT_DIR;
-    const exportFolder = path.join(outputBase, `multi_platform_${folderSafeId(projectId)}`);
-    fs.mkdirSync(exportFolder, { recursive: true });
-
-    // Copy video file & thumbnail
-    const targetVideo = path.join(exportFolder, 'video_shorts.mp4');
-    if (fs.existsSync(videoPath)) {
-      fs.copyFileSync(videoPath, targetVideo);
-    }
-
-    const targetThumb = path.join(exportFolder, 'thumbnail.jpg');
-    const sourceThumbCandidates = [
-      videoPath.replace(/\.mp4$/i, '_thumbnail.jpg'),
-      path.join(path.dirname(videoPath), `${folderSafeId(projectId)}_thumbnail.jpg`),
-    ];
-    for (const st of sourceThumbCandidates) {
-      if (fs.existsSync(st)) {
-        fs.copyFileSync(st, targetThumb);
-        break;
-      }
-    }
-
-    // 1. YouTube Shorts Metadata & Comment
-    const ytComment = settings.youtubeCommentText ? `\n\n[등록할 첫 고정 댓글]\n${settings.youtubeCommentText}` : '';
-    const ytText = `[YouTube Shorts 업로드용]\n\n제목: ${title}\n\n설명:\n${description || ''}\n\n태그:\n${(tags || ['Shorts', '쇼츠', '꿀팁']).join(', ')}${ytComment}`;
-    fs.writeFileSync(path.join(exportFolder, '1_YouTube_Shorts.txt'), ytText, 'utf8');
-
-    // 2. Instagram Reels Metadata
-    const customInstaTags = settings.instagramDefaultTags || '#릴스 #추천 #일상 #꿀팁 #쇼츠';
-    const instaComment = settings.instagramCommentText ? `\n\n[인스타그램 첫 댓글]\n${settings.instagramCommentText}` : '';
-    const instaTags = (tags || ['shorts', 'kshorts', '꿀팁', '릴스', 'reels']).map((t: string) => `#${t.replace(/^#/, '')}`).join(' ');
-    const instaText = `[Instagram Reels 업로드용]\n\n${title}\n\n${description || ''}\n\n.\n.\n${instaTags} ${customInstaTags}${instaComment}`;
-    fs.writeFileSync(path.join(exportFolder, '2_Instagram_Reels.txt'), instaText, 'utf8');
-
-    // 3. TikTok Metadata
-    const customTiktokTags = settings.tiktokDefaultTags || '#fyp #추천 #쇼츠 #viral';
-    const tiktokTags = (tags || ['shorts', '틱톡', 'fyp', '꿀팁']).map((t: string) => `#${t.replace(/^#/, '')}`).join(' ');
-    const tiktokText = `[TikTok 업로드용]\n\n${title} ${tiktokTags} ${customTiktokTags}`;
-    fs.writeFileSync(path.join(exportFolder, '3_TikTok.txt'), tiktokText, 'utf8');
-
-    // 4. Naver Clip Metadata
-    const customNaverTags = settings.naverDefaultTags || ('#클립 #' + PORTAL_KO + '클립 #정보 #꿀팁');
-    const naverBlog = settings.naverBlogLink ? `\n\n[연계 블로그/스마트스토어 링크]\n${settings.naverBlogLink}` : '';
-    const naverText = `[${PORTAL_KO} 클립(Clip) 업로드용]\n\n제목: ${title}\n내용:\n${description || ''}\n태그: ${(tags || ['쇼츠', '꿀팁']).slice(0, 5).join(', ')} ${customNaverTags}${naverBlog}`;
-    fs.writeFileSync(path.join(exportFolder, '4_Naver_Clip.txt'), naverText, 'utf8');
-
-    const hasExportThumb = fs.existsSync(targetThumb);
-    return {
-      success: true,
-      outputFolder: exportFolder,
-      files: {
-        videoFile: targetVideo,
-        thumbnailFile: hasExportThumb ? targetThumb : undefined,
-        youtubeMeta: path.join(exportFolder, '1_YouTube_Shorts.txt'),
-        instagramMeta: path.join(exportFolder, '2_Instagram_Reels.txt'),
-        tiktokMeta: path.join(exportFolder, '3_TikTok.txt'),
-        naverClipMeta: path.join(exportFolder, '4_Naver_Clip.txt'),
-      },
-      summary: `유튜브, 인스타그램 릴스, 틱톡, ${PORTAL_KO} 클립 4대 플랫폼 동시 발행 패키지${hasExportThumb ? ' 및 대표 썸네일' : ''}가 생성되었습니다.`,
-    };
-  } catch (err: any) {
-    return {
-      success: false,
-      error: err?.message || String(err),
-    };
-  }
-});
-
 // ----------------------------------------------------
 // AI Autonomous Topic Researcher & Auto-Pilot Engine
 // ----------------------------------------------------
@@ -7883,16 +7812,8 @@ async function renderVideoToShortsInternal(params: import('../src/types').VideoT
   }
 }
 
-ipcMain.handle('analyze-long-video', async (_, params: { videoPath: string }) => {
-  return analyzeVideoInternal(params.videoPath);
-});
-
 ipcMain.handle('analyze-video-for-shorts', async (_, params: { videoPath: string }) => {
   return analyzeVideoInternal(params.videoPath);
-});
-
-ipcMain.handle('extract-long-to-shorts', async (_, params: any) => {
-  return renderVideoToShortsInternal(params);
 });
 
 ipcMain.handle('render-video-to-shorts', async (_, params: any) => {

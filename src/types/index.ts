@@ -229,14 +229,6 @@ export interface GenerateScriptRequest {
   loopMode?: boolean;
 }
 
-export interface RenderProgressData {
-  projectId: string;
-  status: ProjectStatus | string;
-  progress: number;
-  message: string;
-  errorDetails?: string;
-}
-
 export interface UpdateCheckResult {
   success: boolean;
   hasUpdate?: boolean;
@@ -312,20 +304,6 @@ export interface RenderShortsRequest {
   customScenes?: ScriptScene[];
 }
 
-export interface BatchItem {
-  id: string;
-  topic: string;
-  voiceId?: string;
-  templateId?: string;
-  bgmMood?: string;
-  status: 'pending' | 'generating' | 'rendering' | 'done' | 'error';
-  progress: number;
-  message?: string;
-  error?: string;
-  projectId?: string;
-  videoUrl?: string;
-}
-
 export interface BatchJobConfig {
   items: Array<{ id?: string; topic: string; voiceId?: string; templateId?: string; bgmMood?: string }>;
   defaultVoiceId?: string;
@@ -395,14 +373,6 @@ export interface VideoToShortsResult {
   videoUrl?: string;
   thumbnailPath?: string;
   error?: string;
-}
-
-export interface LongToShortsRequest {
-  videoSource: string;
-  targetDurationSeconds?: number;
-  focusKeywords?: string[];
-  subtitleStyleId?: SubtitleStyleId;
-  voiceId?: string;
 }
 
 export interface AutoPilotHistoryItem {
@@ -478,19 +448,6 @@ export interface AutoPilotStatusEvent {
   currentStep?: string;
   message?: string;
   historyItem?: AutoPilotHistoryItem;
-}
-
-export interface MultiPlatformExportResult {
-  success: boolean;
-  outputFolder: string;
-  files: {
-    videoFile: string;
-    youtubeMeta: string;
-    instagramMeta: string;
-    tiktokMeta: string;
-    naverClipMeta: string;
-  };
-  summary: string;
 }
 
 export interface HookingVariant {

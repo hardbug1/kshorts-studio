@@ -20,7 +20,6 @@ import {
 } from '../types';
 import { VOICES } from './VoiceSelector';
 import { FONTS } from './FontSelector';
-import { TEMPLATES } from './TemplateSelector';
 import { SUBTITLE_STYLES } from './SubtitleStyleSelector';
 
 interface PresetBarProps {
@@ -179,7 +178,6 @@ export const PresetBar: React.FC<PresetBarProps> = ({
               f.id.replace(/\s+/g, '').toLowerCase() === (preset.fontId || '').replace(/\s+/g, '').toLowerCase()
           );
           const fontName = matchedFont?.name ? matchedFont.name.split('(')[0].trim() : (preset.fontId || '프리탠다드');
-          const templateName = TEMPLATES.find((t) => t.id === preset.templateId)?.name || '기본';
           const matchedSub = SUBTITLE_STYLES.find((s) => s.id === preset.subtitleStyleId);
           const subtitleName = matchedSub?.name ? matchedSub.name.split('&')[0].trim() : (preset.subtitleStyleId || '기본');
 
