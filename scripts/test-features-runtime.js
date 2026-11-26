@@ -1349,6 +1349,14 @@ console.log('\n--- 라이선스: 서버 장부 클라이언트 / 선차감·환�
   const badVoices = uiVoiceIds.filter((id) => !['ko-KR-SunHiNeural', 'ko-KR-InJoonNeural'].includes(profileVoices[id.toLowerCase()]));
   assert(uiVoiceIds.length >= 6 && badVoices.length === 0, `성우 목록 전부 실제 Edge 목소리로 연결됨 ${badVoices.join(',')}`);
 
+  // 7-1) 초대형 자막: 긴 자막을 16자 이하로 나누고 시간은 이어지며 원본은 그대로
+  const { splitLongCues } = load(cut('splitLongCues'), ['splitLongCues']);
+  const origCue = { startMs: 1000, endMs: 5000, text: '그런데 이 조합이 아침 혈당을 가장 빠르게 끌어올립니다.' };
+  const pieces = splitLongCues([origCue], 16);
+  assert(pieces.length >= 2 && pieces.every((c) => c.text.length <= 16) && pieces[0].startMs === 1000 && pieces[pieces.length - 1].endMs === 5000
+    && pieces.every((c, i) => i === 0 || c.startMs === pieces[i - 1].endMs) && pieces.map((c) => c.text).join(' ') === origCue.text && origCue.startMs === 1000,
+    `초대형 자막 분할: ${pieces.map((c) => c.text).join(' | ')}`);
+
   // 7-2) 화면의 Gemini 성우 이름은 공식 30개 목소리 중 하나여야 한다(오타면 API 실패 → 기본 성우로 바뀜)
   const GEMINI_OFFICIAL = 'Zephyr Puck Charon Kore Fenrir Leda Orus Aoede Callirrhoe Autonoe Enceladus Iapetus Umbriel Algieba Despina Erinome Algenib Rasalgethi Laomedeia Achernar Alnilam Schedar Gacrux Pulcherrima Achird Zubenelgenubi Vindemiatrix Sadachbia Sadaltager Sulafat'.split(' ');
   const uiGemini = [...fs.readFileSync(path.join(__dirname, '..', 'src', 'components', 'VoiceSelector.tsx'), 'utf8').matchAll(/id: 'gemini_([A-Za-z]+)'/g)].map((m) => m[1]);
