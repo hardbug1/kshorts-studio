@@ -1025,6 +1025,7 @@ async function runSubscriptionLlm(engine: SubscriptionLlm, systemPrompt: string,
     // 도구·MCP·사용자 설정을 빼서 호출당 컨텍스트를 줄인다 (구독 로그인은 유지된다; --bare는 로그인을 잃는다).
     const { stdout } = await execFileAsync('claude', [
       '-p', userPrompt,
+      '--model', 'opus', // 기본값(Fable)은 한도가 빨리 차서 대본이 키워드 템플릿으로 떨어졌다
       '--system-prompt', systemPrompt,
       '--tools', '',
       '--strict-mcp-config',
