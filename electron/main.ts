@@ -1107,14 +1107,23 @@ async function callSubscriptionLlmForScript(
   loopMode: boolean = false
 ): Promise<string> {
   const effectiveTitle = (title || prompt).trim();
-  console.log(`[Subscription Script Engine] ${engine} for title: "${effectiveTitle}"...`);
-  const rawText = await runSubscriptionLlm(
-    engine,
-    KOREAN_SHORTS_SYSTEM_PROMPT + (loopMode ? LOOP_MODE_SYSTEM_ADDENDUM : ''),
-    buildScriptUserPrompt(prompt, effectiveTitle, durationSeconds)
-  );
-  if (rawText.length > 100) return cleanScript(rawText);
-  throw new Error(`${engine} returned empty script`);
+  const systemPrompt = KOREAN_SHORTS_SYSTEM_PROMPT + (loopMode ? LOOP_MODE_SYSTEM_ADDENDUM : '');
+  const userPrompt = buildScriptUserPrompt(prompt, effectiveTitle, durationSeconds);
+  // 한 구독이 한도 초과·로그아웃이면 다른 구독(claude↔codex)으로 한 번 더 시도한다. 둘 다 실패하면 호출자가 API 키→키워드 템플릿 순으로 넘어간다.
+  const engines: SubscriptionLlm[] = [engine, engine === 'claude' ? 'codex' : 'claude'];
+  let lastErr: unknown = null;
+  for (const e of engines) {
+    try {
+      console.log(`[Subscription Script Engine] ${e} for title: "${effectiveTitle}"...`);
+      const rawText = await runSubscriptionLlm(e, systemPrompt, userPrompt);
+      if (rawText.length > 100) return cleanScript(rawText);
+      lastErr = new Error(`${e} returned empty script`);
+    } catch (err) {
+      lastErr = err;
+      console.warn(`[Subscription Script Engine] ${e} failed:`, (err as any)?.stdout || (err as any)?.message || err);
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }
 
 function cleanScript(raw: string): string {
